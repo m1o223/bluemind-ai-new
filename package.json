@@ -1,0 +1,38 @@
+{
+  "name": "@bluemind-ai/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "check": "node scripts/check.js",
+    "check:email": "node scripts/check-email.js",
+    "check:mongo": "node scripts/check-mongo-connection.js",
+    "reset:auth:dev": "node scripts/reset-auth-dev.js --confirm=RESET_AUTH_DEV"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.10.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^6.9.16",
+    "openai": "^4.78.1",
+    "pino": "^9.6.0",
+    "pino-http": "^10.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
