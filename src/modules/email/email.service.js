@@ -12,6 +12,19 @@ function wait(ms) {
   });
 }
 
+function withEmailTimeout(promise) {
+  let timeout;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new Error(`Email provider timed out after ${env.EMAIL_SEND_TIMEOUT_MS}ms`);
+      error.code = "EMAIL_PROVIDER_TIMEOUT";
+      reject(error);
+    }, env.EMAIL_SEND_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
+
 function publicFrontendUrl(pathname) {
   return new URL(pathname, env.FRONTEND_URL).toString();
 }
@@ -187,6 +200,9 @@ async function createSmtpTransporter() {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
+    connectionTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    greetingTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    socketTimeout: env.EMAIL_SEND_TIMEOUT_MS,
     auth: {
       user: env.SMTP_USER,
       pass: smtpPassword()
@@ -196,7 +212,7 @@ async function createSmtpTransporter() {
     }
   });
 
-  await transporter.verify();
+  await withEmailTimeout(transporter.verify());
   logger.info({
     provider: "smtp",
     host: env.SMTP_HOST,
@@ -222,13 +238,13 @@ async function getSmtpTransporter() {
 async function sendWithSmtp({ to, subject, text, html }) {
   try {
     const transporter = await getSmtpTransporter();
-    return await transporter.sendMail({
+    return await withEmailTimeout(transporter.sendMail({
       from: env.EMAIL_FROM,
       to,
       subject,
       text,
       html
-    });
+    }));
   } catch (error) {
     smtpTransporterPromise = undefined;
     throw error;
@@ -243,7 +259,7 @@ async function sendWithResend({ to, subject, text, html }) {
     });
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await withEmailTimeout(fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
@@ -256,7 +272,7 @@ async function sendWithResend({ to, subject, text, html }) {
       text,
       html
     })
-  });
+  }));
 
   const payload = await response.json().catch(() => ({}));
 

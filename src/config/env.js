@@ -54,6 +54,7 @@ const envSchema = z.object({
   SMTP_REJECT_UNAUTHORIZED: envBoolean(true),
   EMAIL_SEND_RETRIES: z.coerce.number().int().min(0).max(3).default(2),
   EMAIL_SEND_RETRY_DELAY_MS: z.coerce.number().int().min(100).max(10000).default(750),
+  EMAIL_SEND_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(12000),
   EMAIL_VERIFICATION_CODE_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
   PASSWORD_RESET_CODE_TTL_MINUTES: z.coerce.number().int().min(5).max(120).default(15),
   AUTH_CODE_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
