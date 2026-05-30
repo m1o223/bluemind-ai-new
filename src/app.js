@@ -15,11 +15,18 @@ export const app = express();
 
 app.disable("x-powered-by");
 
+const productionCorsOrigins = [
+  "https://bluemind-frontend.vercel.app",
+  "https://bluemind-frontend-m1o223s-projects.vercel.app",
+  "https://bluemind-frontend-m1o223-m1o223s-projects.vercel.app"
+];
+
 function isAllowedCorsOrigin(origin) {
   return (
     !origin ||
     env.corsOrigins.includes("*") ||
-    env.corsOrigins.includes(origin)
+    env.corsOrigins.includes(origin) ||
+    productionCorsOrigins.includes(origin)
   );
 }
 
