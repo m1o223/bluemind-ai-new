@@ -15,20 +15,11 @@ export const app = express();
 
 app.disable("x-powered-by");
 
-function isDevelopmentLoopbackOrigin(origin) {
-  if (env.NODE_ENV === "production") {
-    return false;
-  }
-
-  return /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
-}
-
 function isAllowedCorsOrigin(origin) {
   return (
     !origin ||
     env.corsOrigins.includes("*") ||
-    env.corsOrigins.includes(origin) ||
-    isDevelopmentLoopbackOrigin(origin)
+    env.corsOrigins.includes(origin)
   );
 }
 

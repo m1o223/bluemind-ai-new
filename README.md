@@ -14,5 +14,5 @@ Clean backend foundation for authentication, AI chat, memory, reminders, and str
 Default base URL:
 
 ```txt
-http://localhost:5000/api
+https://your-render-backend-domain.onrender.com/api
 ```

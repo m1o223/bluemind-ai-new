@@ -17,8 +17,26 @@ services:
         value: "true"
       - key: AUTH_COOKIE_SAME_SITE
         value: none
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       - key: EMAIL_DEV_MODE
         value: "false"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_REJECT_UNAUTHORIZED
+        value: "true"
       - key: REMINDER_SCHEDULER_ENABLED
         value: "true"
       - key: MONGODB_URI
