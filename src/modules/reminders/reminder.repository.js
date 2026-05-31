@@ -83,10 +83,17 @@ export function markMissedReminders(cutoffDate) {
 }
 
 export function upsertDeviceToken(userId, input) {
+  const token = input.token || input.subscription?.endpoint;
+  const metadata = {
+    ...(input.metadata || {}),
+    provider: input.subscription ? "web-push" : input.metadata?.provider,
+    subscription: input.subscription || input.metadata?.subscription
+  };
+
   return DeviceToken.findOneAndUpdate(
     {
       userId,
-      token: input.token
+      token
     },
     {
       $set: {
@@ -96,11 +103,11 @@ export function upsertDeviceToken(userId, input) {
         status: DEVICE_TOKEN_STATUSES.ACTIVE,
         lastSeenAt: new Date(),
         lastError: "",
-        metadata: input.metadata || {}
+        metadata
       },
       $setOnInsert: {
         userId,
-        token: input.token
+        token
       }
     },
     {

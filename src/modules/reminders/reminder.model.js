@@ -4,6 +4,7 @@ import {
   DEFAULT_REMINDER_BEFORE_MINUTES,
   REMINDER_CATEGORIES,
   REMINDER_PRIORITIES,
+  REMINDER_RECURRENCE_FREQUENCIES,
   REMINDER_STATUSES
 } from "./reminder.constants.js";
 
@@ -142,6 +143,23 @@ const reminderSchema = new mongoose.Schema({
     enum: Object.values(REMINDER_PRIORITIES),
     default: REMINDER_PRIORITIES.NORMAL,
     index: true
+  },
+  recurrence: {
+    frequency: {
+      type: String,
+      enum: Object.values(REMINDER_RECURRENCE_FREQUENCIES),
+      default: REMINDER_RECURRENCE_FREQUENCIES.NONE,
+      index: true
+    },
+    interval: {
+      type: Number,
+      min: 1,
+      max: 365,
+      default: 1
+    },
+    until: {
+      type: Date
+    }
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,

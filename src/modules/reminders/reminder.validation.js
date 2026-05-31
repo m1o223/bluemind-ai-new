@@ -4,6 +4,7 @@ import {
   MAX_REMINDER_BEFORE_MINUTES,
   REMINDER_CATEGORIES,
   REMINDER_PRIORITIES,
+  REMINDER_RECURRENCE_FREQUENCIES,
   REMINDER_STATUSES
 } from "./reminder.constants.js";
 
@@ -25,6 +26,11 @@ const timezoneSchema = z.string().trim().min(1).refine(isValidTimezone, {
 });
 
 const metadataSchema = z.record(z.unknown()).optional();
+const recurrenceSchema = z.object({
+  frequency: z.enum(Object.values(REMINDER_RECURRENCE_FREQUENCIES)).default(REMINDER_RECURRENCE_FREQUENCIES.NONE),
+  interval: z.coerce.number().int().min(1).max(365).default(1),
+  until: z.string().datetime().optional()
+}).strict().optional();
 
 const reminderBodyBaseSchema = z.object({
   title: z.string().trim().min(1).max(160),
@@ -37,6 +43,7 @@ const reminderBodyBaseSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
   category: z.enum(Object.values(REMINDER_CATEGORIES)).optional(),
   priority: z.enum(Object.values(REMINDER_PRIORITIES)).optional(),
+  recurrence: recurrenceSchema,
   aiGenerated: z.boolean().optional(),
   aiSuggested: z.boolean().optional(),
   aiContext: z.string().trim().max(4000).optional(),
@@ -120,11 +127,31 @@ export const aiSuggestReminderSchema = z.object({
 
 export const registerDeviceSchema = z.object({
   body: z.object({
-    token: z.string().trim().min(16).max(4096),
+    token: z.string().trim().min(16).max(4096).optional(),
+    subscription: z.object({
+      endpoint: z.string().trim().url().max(4096),
+      expirationTime: z.union([z.number(), z.null()]).optional(),
+      keys: z.object({
+        p256dh: z.string().trim().min(16).max(4096),
+        auth: z.string().trim().min(8).max(1024)
+      }).strict()
+    }).strict().optional(),
     platform: z.enum(["web", "android", "ios", "unknown"]).default("web"),
     browser: z.string().trim().max(80).optional(),
     deviceId: z.string().trim().max(160).optional(),
     metadata: metadataSchema
+  }).strict().refine((body) => body.token || body.subscription, {
+    message: "token or subscription is required"
+  }),
+  params: z.object({}),
+  query: z.object({})
+});
+
+export const testNotificationSchema = z.object({
+  body: z.object({
+    title: z.string().trim().min(1).max(120).optional(),
+    body: z.string().trim().min(1).max(500).optional(),
+    url: z.string().trim().max(500).optional()
   }).strict(),
   params: z.object({}),
   query: z.object({})

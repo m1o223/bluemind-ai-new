@@ -165,6 +165,11 @@ function toReminderResponse(reminder) {
       scheduledJobId: reminder.scheduledJobId,
       nextTriggerAt: reminder.nextTriggerAt
     },
+    recurrence: {
+      frequency: reminder.recurrence?.frequency || "none",
+      interval: reminder.recurrence?.interval || 1,
+      until: reminder.recurrence?.until
+    },
     tags: reminder.tags,
     category: reminder.category,
     priority: reminder.priority,
@@ -268,6 +273,7 @@ export async function createUserReminder(userId, input) {
     tags: input.tags || [],
     category: input.category || REMINDER_CATEGORIES.GENERAL,
     priority: input.priority || REMINDER_PRIORITIES.NORMAL,
+    recurrence: input.recurrence || { frequency: "none", interval: 1 },
     metadata: input.metadata || {}
   });
   const memory = await saveReminderMemory(userId, reminder);
@@ -308,6 +314,7 @@ export async function updateUserReminder(userId, reminderId, input) {
   if (input.linkedConversationId !== undefined) reminder.linkedConversationId = input.linkedConversationId;
   if (input.linkedMemoryId !== undefined) reminder.linkedMemoryId = input.linkedMemoryId;
   if (input.metadata !== undefined) reminder.metadata = input.metadata;
+  if (input.recurrence !== undefined) reminder.recurrence = input.recurrence;
 
   if (shouldRecomputeTiming) {
     const timing = normalizeTiming(input, reminder);

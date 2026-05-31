@@ -9,7 +9,11 @@ import {
   extractReminderIntent,
   suggestReminderOpportunities
 } from "./reminder.ai.js";
-import { registerReminderDevice } from "./reminder.notification.js";
+import {
+  getNotificationRuntimeStatus,
+  registerReminderDevice,
+  sendReminderTestNotification
+} from "./reminder.notification.js";
 import { reminderTime } from "./reminder.service.js";
 import {
   createUserReminder,
@@ -145,4 +149,13 @@ export const registerDevice = asyncHandler(async (req, res) => {
 
   req.log.info({ deviceId: device.id, platform: device.platform }, "Reminder device token registered");
   sendResponse(res, 201, { device });
+});
+
+export const getNotificationStatus = asyncHandler(async (_req, res) => {
+  sendResponse(res, 200, getNotificationRuntimeStatus());
+});
+
+export const sendTestNotification = asyncHandler(async (req, res) => {
+  const result = await sendReminderTestNotification(req.user._id, req.validated.body);
+  sendResponse(res, result.delivered ? 200 : 202, result);
 });

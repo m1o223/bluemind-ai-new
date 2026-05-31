@@ -20,6 +20,7 @@ import {
   upsertDeviceToken
 } from "./reminder.repository.js";
 import { sendFirebaseMulticast } from "./firebase.service.js";
+import { isWebPushConfigured, sendWebPushNotifications } from "./webPush.service.js";
 import { normalizePreferences } from "../preferences/preferences.service.js";
 
 function toDeviceTokenResponse(deviceToken) {
@@ -28,6 +29,7 @@ function toDeviceTokenResponse(deviceToken) {
     platform: deviceToken.platform,
     browser: deviceToken.browser,
     deviceId: deviceToken.deviceId,
+    provider: deviceToken.metadata?.provider || "firebase",
     status: deviceToken.status,
     lastSeenAt: deviceToken.lastSeenAt,
     createdAt: deviceToken.createdAt,
@@ -88,12 +90,80 @@ function buildNotificationPayload({ reminder, user }) {
   };
 }
 
+function buildWebPushPayload(payload) {
+  const deepLink = payload.data.deepLink || payload.data.click_action || DEFAULT_NOTIFICATION_DEEP_LINK;
+
+  return {
+    title: payload.notification.title,
+    body: payload.notification.body,
+    icon: "/bluemind-logo-black.png",
+    badge: "/bluemind-logo-black.png",
+    tag: payload.webpush.notification.tag,
+    requireInteraction: payload.webpush.notification.requireInteraction,
+    data: {
+      ...payload.data,
+      url: deepLink,
+      deepLink
+    },
+    actions: [
+      {
+        action: "open",
+        title: "Open"
+      }
+    ]
+  };
+}
+
+function splitNotificationDevices(deviceTokens) {
+  const webPush = [];
+  const firebase = [];
+
+  for (const device of deviceTokens) {
+    const subscription = device.metadata?.subscription;
+
+    if (device.metadata?.provider === "web-push" && subscription?.endpoint && subscription?.keys) {
+      webPush.push(subscription);
+    } else if (device.token) {
+      firebase.push(device.token);
+    }
+  }
+
+  return { webPush, firebase };
+}
+
+function combineDeliveryResults(results) {
+  const result = {
+    success: false,
+    skipped: false,
+    successCount: 0,
+    failureCount: 0,
+    invalidTokens: [],
+    invalidEndpoints: [],
+    providers: results
+  };
+
+  for (const item of results) {
+    result.successCount += item.successCount || 0;
+    result.failureCount += item.failureCount || 0;
+    result.invalidTokens.push(...(item.invalidTokens || []));
+    result.invalidEndpoints.push(...(item.invalidEndpoints || []));
+    result.success = result.success || Boolean(item.success);
+  }
+
+  result.skipped = results.length > 0 && results.every((item) => item.skipped);
+
+  return result;
+}
+
 async function markReminderNotificationSent(reminder, result) {
-  reminder.notificationSent = true;
   reminder.notificationSentAt = new Date();
   reminder.lastNotificationAttempt = new Date();
   reminder.notificationAttempts += 1;
   reminder.notificationError = result.skipped ? result.error || "Notification skipped" : "";
+
+  const advanced = advanceRecurringReminder(reminder);
+  reminder.notificationSent = !advanced;
+
   await saveReminder(reminder);
 }
 
@@ -107,6 +177,170 @@ async function markReminderNotificationFailed(reminder, error) {
 export async function registerReminderDevice(userId, input) {
   const deviceToken = await upsertDeviceToken(userId, input);
   return toDeviceTokenResponse(deviceToken);
+}
+
+export function getNotificationRuntimeStatus() {
+  return {
+    webPush: {
+      configured: isWebPushConfigured(),
+      publicKeyConfigured: Boolean(env.WEB_PUSH_PUBLIC_KEY),
+      privateKeyConfigured: Boolean(env.WEB_PUSH_PRIVATE_KEY)
+    },
+    firebase: {
+      configured: Boolean(
+        env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+        (env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY)
+      )
+    },
+    scheduler: {
+      enabled: env.REMINDER_SCHEDULER_ENABLED,
+      cron: env.REMINDER_SCHEDULER_CRON
+    }
+  };
+}
+
+export async function sendReminderTestNotification(userId, input = {}) {
+  const [user, deviceTokens] = await Promise.all([
+    findUserById(userId),
+    listActiveDeviceTokens(userId)
+  ]);
+
+  if (!user) {
+    return { delivered: false, error: "User was not found" };
+  }
+
+  const deepLink = input.url || DEFAULT_NOTIFICATION_DEEP_LINK;
+  const payload = {
+    notification: {
+      title: input.title || "BlueMind AI",
+      body: input.body || "Notifications are ready."
+    },
+    data: {
+      type: "test",
+      deepLink,
+      click_action: deepLink
+    },
+    webpush: {
+      notification: {
+        tag: "bluemind-test-notification",
+        requireInteraction: false
+      }
+    }
+  };
+  const { webPush, firebase } = splitNotificationDevices(deviceTokens);
+  const results = [];
+
+  if (firebase.length) {
+    results.push(await sendFirebaseMulticast({
+      tokens: firebase,
+      message: payload
+    }));
+  }
+
+  if (webPush.length) {
+    results.push(await sendWebPushNotifications({
+      subscriptions: webPush,
+      payload: buildWebPushPayload(payload)
+    }));
+  }
+
+  if (!results.length) {
+    return {
+      delivered: false,
+      skipped: true,
+      error: "No active notification devices"
+    };
+  }
+
+  const result = combineDeliveryResults(results);
+
+  await Promise.all((result.invalidTokens || []).map((token) => (
+    revokeDeviceToken(userId, token, "FCM rejected device token")
+  )));
+  await Promise.all((result.invalidEndpoints || []).map((endpoint) => (
+    revokeDeviceToken(userId, endpoint, "Web Push subscription expired")
+  )));
+
+  return {
+    delivered: result.success,
+    result
+  };
+}
+
+function addMonthsClamped(date, months) {
+  const next = new Date(date);
+  const originalDay = next.getUTCDate();
+
+  next.setUTCDate(1);
+  next.setUTCMonth(next.getUTCMonth() + months);
+
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+  next.setUTCDate(Math.min(originalDay, lastDay));
+
+  return next;
+}
+
+function advanceRecurringReminder(reminder) {
+  const recurrence = reminder.recurrence || {};
+  const frequency = recurrence.frequency || "none";
+
+  if (frequency === "none") {
+    return false;
+  }
+
+  const interval = Math.max(1, Number(recurrence.interval || 1));
+  const currentDueAt = reminder.dueAt ? new Date(reminder.dueAt) : null;
+
+  if (!currentDueAt || Number.isNaN(currentDueAt.getTime())) {
+    return false;
+  }
+
+  let nextDueAt;
+
+  if (frequency === "daily") {
+    nextDueAt = new Date(currentDueAt.getTime() + interval * 24 * 60 * 60 * 1000);
+  } else if (frequency === "weekly") {
+    nextDueAt = new Date(currentDueAt.getTime() + interval * 7 * 24 * 60 * 60 * 1000);
+  } else if (frequency === "monthly") {
+    nextDueAt = addMonthsClamped(currentDueAt, interval);
+  } else {
+    return false;
+  }
+
+  if (recurrence.until && nextDueAt > new Date(recurrence.until)) {
+    return false;
+  }
+
+  const nextTriggerAt = new Date(nextDueAt.getTime() - (reminder.reminderBefore || 0) * 60 * 1000);
+  reminder.dueAt = nextDueAt;
+  reminder.nextTriggerAt = nextTriggerAt;
+  reminder.scheduledJobId = `reminder:${reminder._id}:${nextTriggerAt.getTime()}`;
+
+  const local = reminderTimeFormat(nextDueAt, reminder.timezone);
+  reminder.reminderDate = local.reminderDate;
+  reminder.reminderTime = local.reminderTime;
+
+  return true;
+}
+
+function reminderTimeFormat(date, timezone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone || env.DEFAULT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return {
+    reminderDate: `${parts.year}-${parts.month}-${parts.day}`,
+    reminderTime: `${parts.hour}:${parts.minute}`
+  };
 }
 
 export async function enqueueReminderNotification(reminder, reason = "scheduled") {
@@ -179,13 +413,30 @@ export async function deliverReminderNotification(queueItem) {
   }
 
   try {
-    const result = await sendFirebaseMulticast({
-      tokens: deviceTokens.map((item) => item.token),
-      message: payload
-    });
+    const { webPush, firebase } = splitNotificationDevices(deviceTokens);
+    const results = [];
+
+    if (firebase.length) {
+      results.push(await sendFirebaseMulticast({
+        tokens: firebase,
+        message: payload
+      }));
+    }
+
+    if (webPush.length) {
+      results.push(await sendWebPushNotifications({
+        subscriptions: webPush,
+        payload: buildWebPushPayload(payload)
+      }));
+    }
+
+    const result = combineDeliveryResults(results);
 
     await Promise.all((result.invalidTokens || []).map((token) => (
       revokeDeviceToken(reminder.userId, token, "FCM rejected device token")
+    )));
+    await Promise.all((result.invalidEndpoints || []).map((endpoint) => (
+      revokeDeviceToken(reminder.userId, endpoint, "Web Push subscription expired")
     )));
 
     if (result.skipped || result.success) {

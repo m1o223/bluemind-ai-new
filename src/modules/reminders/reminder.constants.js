@@ -21,6 +21,13 @@ export const REMINDER_CATEGORIES = Object.freeze({
   PERSONAL: "personal"
 });
 
+export const REMINDER_RECURRENCE_FREQUENCIES = Object.freeze({
+  NONE: "none",
+  DAILY: "daily",
+  WEEKLY: "weekly",
+  MONTHLY: "monthly"
+});
+
 export const REMINDER_NOTIFICATION_STATUSES = Object.freeze({
   QUEUED: "queued",
   PROCESSING: "processing",
