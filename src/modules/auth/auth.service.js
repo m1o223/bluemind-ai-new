@@ -219,6 +219,19 @@ export async function loginUser({ email, password }, req) {
   return createAuthSession(user, req);
 }
 
+export async function loginGuest(req) {
+  const guestId = crypto.randomUUID();
+  const user = await createUser({
+    name: "BlueMind Guest",
+    email: `guest-${guestId}@guest.bluemind.local`,
+    authProvider: "guest",
+    emailVerified: true
+  });
+
+  await updateLastLogin(user);
+  return createAuthSession(user, req);
+}
+
 export async function verifyEmail({ email, code }, req) {
   const user = await findUserByEmail(email);
 

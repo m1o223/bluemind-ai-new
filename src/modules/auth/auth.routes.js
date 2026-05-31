@@ -8,6 +8,7 @@ import {
   forgotPassword,
   getMe,
   googleCallback,
+  guest,
   login,
   logout,
   requestChangeEmail,
@@ -62,6 +63,7 @@ const authCodeLimiter = rateLimit({
 
 router.post("/register", authAttemptLimiter, validate(registerSchema), register);
 router.post("/login", authAttemptLimiter, validate(loginSchema), login);
+router.post("/guest", authAttemptLimiter, guest);
 router.post("/verify-email", authCodeLimiter, validate(verifyEmailSchema), verifyEmailCode);
 router.post("/resend-verification", authCodeLimiter, validate(resendVerificationSchema), resendVerification);
 router.post("/forgot-password", authCodeLimiter, validate(forgotPasswordSchema), forgotPassword);

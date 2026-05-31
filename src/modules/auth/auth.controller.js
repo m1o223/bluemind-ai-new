@@ -15,6 +15,7 @@ import {
   resendEmailVerification,
   resetPassword,
   verifyEmail,
+  loginGuest,
   loginUser,
   logoutSession,
   refreshSession,
@@ -132,6 +133,24 @@ export const login = asyncHandler(async (req, res) => {
   }, "Auth login succeeded");
 
   sendAuthResponse(res, 200, result);
+});
+
+export const guest = asyncHandler(async (req, res) => {
+  req.log.info({
+    authFlow: "guest",
+    origin: req.headers.origin,
+    hasCookie: Boolean(req.headers.cookie)
+  }, "Guest auth started");
+
+  const result = await loginGuest(req);
+
+  req.log.info({
+    authFlow: "guest",
+    userId: result.user.id,
+    sessionId: result.session.id
+  }, "Guest auth succeeded");
+
+  sendAuthResponse(res, 201, result);
 });
 
 export const getMe = asyncHandler(async (req, res) => {
