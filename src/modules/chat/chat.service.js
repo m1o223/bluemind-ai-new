@@ -62,7 +62,9 @@ function buildConversationResponse(conversation) {
     summary: conversation.summary,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
-    messages: conversation.messages.map(buildMessageResponse)
+    messages: conversation.messages
+      .filter((message) => !message.metadata?.hiddenFromChat)
+      .map(buildMessageResponse)
   };
 }
 
@@ -126,9 +128,101 @@ async function updateConversationTitleIfNeeded(conversation, latestMessage, pref
   return saveConversation(conversation);
 }
 
-function buildUserMessageContent(message, images) {
+function getSearchHandoffContext(metadata = {}) {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+
+  const context = metadata.searchContext && typeof metadata.searchContext === "object"
+    ? metadata.searchContext
+    : metadata;
+  const source = String(context.source || metadata.source || "").toLowerCase();
+  const intent = String(context.intent || metadata.intent || "");
+  const category = String(context.category || metadata.category || "").trim();
+  const categoryTitle = String(context.categoryTitle || metadata.categoryTitle || category).trim();
+  const selectedItem = String(context.selectedItem || metadata.selectedItem || "").trim();
+
+  if (source !== "search" || !category) {
+    return null;
+  }
+
+  if (intent === "item_not_found") {
+    return {
+      source,
+      intent,
+      category,
+      categoryTitle: categoryTitle || category
+    };
+  }
+
+  if (intent === "learn_more_about_selected_item" && selectedItem) {
+    return {
+      source,
+      intent,
+      category,
+      categoryTitle: categoryTitle || category,
+      selectedItem
+    };
+  }
+
+  return null;
+}
+
+function buildSearchHandoffMessage(metadata) {
+  const context = getSearchHandoffContext(metadata);
+
+  if (!context) {
+    return "";
+  }
+
+  const categoryLabel = context.categoryTitle || context.category;
+
+  if (context.intent === "learn_more_about_selected_item") {
+    return [
+      "Search handoff context. The user tapped Ask AI from a selected Search result.",
+      `Category: ${categoryLabel}`,
+      `Selected item: ${context.selectedItem}`,
+      "Intent: learn_more_about_selected_item",
+      "",
+      "Start the conversation directly as BlueMind AI. Do not mention internal metadata or that this is a hidden handoff.",
+      `Tell the user you see they are interested in ${context.selectedItem}.`,
+      `Ask what they would like to know about ${context.selectedItem}.`,
+      "Offer useful directions such as summary, key ideas, similar resources, background, author/source information, or a plan when relevant."
+    ].join("\n");
+  }
+
+  return [
+    "Search handoff context. The user tapped Ask AI because they did not find the item they wanted in Search.",
+    `Category: ${categoryLabel}`,
+    "Intent: item_not_found",
+    "",
+    "Start the conversation directly as BlueMind AI. Do not mention internal metadata or that this is a hidden handoff.",
+    `Tell the user you see they are looking for something in ${categoryLabel}.`,
+    "Ask for the name, location, topic, description, or anything they remember so you can help them find it.",
+    "Make the first message short, helpful, and category-aware."
+  ].join("\n");
+}
+
+function buildSearchHandoffTitleSeed(context) {
+  if (!context) {
+    return "";
+  }
+
+  if (context.selectedItem) {
+    return `${context.selectedItem} search help`;
+  }
+
+  return `${context.categoryTitle || context.category} search help`;
+}
+
+function buildUserMessageContent(message, images, metadata) {
   if (message) {
     return message;
+  }
+
+  const searchHandoffMessage = buildSearchHandoffMessage(metadata);
+  if (searchHandoffMessage) {
+    return searchHandoffMessage;
   }
 
   return images.length === 1
@@ -306,13 +400,17 @@ export async function createChatReply({ userId, conversationId, message, imageId
   const conversation = await getOrCreateConversation({ userId, conversationId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
-  const userMessageContent = buildUserMessageContent(message, images);
+  const searchHandoffContext = getSearchHandoffContext(metadata);
+  const hiddenSearchHandoff = Boolean(searchHandoffContext && !message && !images.length);
+  const userMessageContent = buildUserMessageContent(message, images, metadata);
 
   await appendMessage(conversation, {
     role: "user",
     content: userMessageContent,
     metadata: {
       ...(metadata || {}),
+      hiddenFromChat: hiddenSearchHandoff || undefined,
+      searchHandoff: searchHandoffContext || undefined,
       mode: normalizeResponseMode(metadata, mode),
       attachments: buildAttachmentMetadata(images)
     }
@@ -344,7 +442,7 @@ export async function createChatReply({ userId, conversationId, message, imageId
     analyzeImagesForMemory(userId, images)
   ]);
 
-  await updateConversationTitleIfNeeded(conversation, userMessageContent, user?.preferences);
+  await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
@@ -367,13 +465,17 @@ export async function createStreamingChatReply({
   const conversation = await getOrCreateConversation({ userId, conversationId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
-  const userMessageContent = buildUserMessageContent(message, images);
+  const searchHandoffContext = getSearchHandoffContext(metadata);
+  const hiddenSearchHandoff = Boolean(searchHandoffContext && !message && !images.length);
+  const userMessageContent = buildUserMessageContent(message, images, metadata);
 
   await appendMessage(conversation, {
     role: "user",
     content: userMessageContent,
     metadata: {
       ...(metadata || {}),
+      hiddenFromChat: hiddenSearchHandoff || undefined,
+      searchHandoff: searchHandoffContext || undefined,
       mode: normalizeResponseMode(metadata, mode),
       attachments: buildAttachmentMetadata(images)
     }
@@ -412,7 +514,7 @@ export async function createStreamingChatReply({
     analyzeImagesForMemory(userId, images)
   ]);
 
-  await updateConversationTitleIfNeeded(conversation, userMessageContent, user?.preferences);
+  await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,

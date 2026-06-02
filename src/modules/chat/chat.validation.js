@@ -3,6 +3,30 @@ import { z } from "zod";
 const objectIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid conversationId");
 const imageIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid imageId");
 
+function hasSearchHandoff(metadata) {
+  if (!metadata || typeof metadata !== "object") {
+    return false;
+  }
+
+  const context = metadata.searchContext && typeof metadata.searchContext === "object"
+    ? metadata.searchContext
+    : metadata;
+  const source = String(context.source || metadata.source || "").toLowerCase();
+  const intent = String(context.intent || metadata.intent || "");
+  const category = String(context.category || metadata.category || "");
+  const selectedItem = String(context.selectedItem || metadata.selectedItem || "");
+
+  if (source !== "search" || !category) {
+    return false;
+  }
+
+  if (intent === "item_not_found") {
+    return true;
+  }
+
+  return intent === "learn_more_about_selected_item" && Boolean(selectedItem);
+}
+
 export const chatMessageSchema = z.object({
   body: z.object({
     conversationId: objectIdSchema.optional(),
@@ -10,8 +34,8 @@ export const chatMessageSchema = z.object({
     imageIds: z.array(imageIdSchema).max(4).default([]),
     mode: z.enum(["fast", "smart", "thinking", "instant", "deep_thinking"]).optional(),
     metadata: z.record(z.unknown()).optional()
-  }).strict().refine((body) => Boolean(body.message || body.imageIds.length), {
-    message: "message or imageIds is required"
+  }).strict().refine((body) => Boolean(body.message || body.imageIds.length || hasSearchHandoff(body.metadata)), {
+    message: "message, imageIds, or search context is required"
   }),
   params: z.object({}),
   query: z.object({})
