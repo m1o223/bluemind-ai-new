@@ -176,6 +176,16 @@ function buildSearchHandoffMessage(metadata) {
   }
 
   const categoryLabel = context.categoryTitle || context.category;
+  const missingItemHints = {
+    books: "title, author, cover color, topic, genre, school subject, or anything the user remembers",
+    schools: "country, city, program, grade level, curriculum, or nearby location",
+    universities: "country, major, degree, admissions need, scholarship goal, or study level",
+    people: "name, profession, era, country, achievement, appearance, or any remembered detail",
+    "research-papers": "topic, author, field, keywords, journal, method, or citation clue",
+    "technology-ai": "device, tool, programming topic, AI concept, product, or trend",
+    "travel-places": "country, city, landmark, climate, activity, or travel goal"
+  };
+  const missingHints = missingItemHints[context.category] || "name, topic, description, location, keywords, or anything the user remembers";
 
   if (context.intent === "learn_more_about_selected_item") {
     return [
@@ -185,9 +195,10 @@ function buildSearchHandoffMessage(metadata) {
       "Intent: learn_more_about_selected_item",
       "",
       "Start the conversation directly as BlueMind AI. Do not mention internal metadata or that this is a hidden handoff.",
-      `Tell the user you see they are interested in ${context.selectedItem}.`,
+      `Open with the selected item name: ${context.selectedItem}.`,
       `Ask what they would like to know about ${context.selectedItem}.`,
-      "Offer useful directions such as summary, key ideas, similar resources, background, author/source information, or a plan when relevant."
+      "Offer concise, relevant options such as summary, key ideas, similar resources, background, author/source information, or a plan when relevant.",
+      "Keep the message short and useful. The user should not need to type first before seeing your opening question."
     ].join("\n");
   }
 
@@ -197,9 +208,10 @@ function buildSearchHandoffMessage(metadata) {
     "Intent: item_not_found",
     "",
     "Start the conversation directly as BlueMind AI. Do not mention internal metadata or that this is a hidden handoff.",
-    `Tell the user you see they are looking for something in ${categoryLabel}.`,
-    "Ask for the name, location, topic, description, or anything they remember so you can help them find it.",
-    "Make the first message short, helpful, and category-aware."
+    `Open with a short category-aware line for ${categoryLabel}.`,
+    `Ask the user to share ${missingHints} so you can help them find it.`,
+    "Use a compact bullet list only if it improves clarity.",
+    "Make the first message short, helpful, and category-aware. The user should not need to type first before seeing your opening question."
   ].join("\n");
 }
 
