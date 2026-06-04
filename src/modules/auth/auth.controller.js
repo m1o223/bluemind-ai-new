@@ -1,5 +1,6 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { sendResponse } from "../../utils/sendResponse.js";
+import { updateUserProfile as updateUserProfileData } from "../users/user.service.js";
 import {
   clearOAuthStateCookie,
   clearRefreshCookie,
@@ -199,6 +200,11 @@ export const logout = asyncHandler(async (req, res) => {
 
 export const updatePreferences = asyncHandler(async (req, res) => {
   const user = await updateUserPreferences(req.user, req.validated.body);
+  sendResponse(res, 200, { user });
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const user = await updateUserProfileData(req.user, req.validated.body);
   sendResponse(res, 200, { user });
 });
 

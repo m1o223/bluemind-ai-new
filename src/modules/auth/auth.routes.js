@@ -18,6 +18,7 @@ import {
   resetPasswordWithCode,
   startGoogleLogin,
   updatePassword,
+  updateProfile,
   verifyEmailCode,
   updatePreferences
 } from "./auth.controller.js";
@@ -29,6 +30,7 @@ import {
   googleCallbackSchema,
   loginSchema,
   logoutSchema,
+  profileSchema,
   preferencesSchema,
   refreshSchema,
   registerSchema,
@@ -73,6 +75,7 @@ router.post("/logout", validate(logoutSchema), logout);
 router.get("/google", startGoogleLogin);
 router.get("/google/callback", validate(googleCallbackSchema), googleCallback);
 router.get("/me", requireAuth, getMe);
+router.patch("/profile", requireAuth, validate(profileSchema), updateProfile);
 router.patch("/preferences", requireAuth, validate(preferencesSchema), updatePreferences);
 router.post("/change-email/request", requireAuth, authCodeLimiter, validate(changeEmailRequestSchema), requestChangeEmail);
 router.post("/change-email/confirm", requireAuth, authCodeLimiter, validate(changeEmailConfirmSchema), confirmChangeEmail);

@@ -3,6 +3,11 @@ import { preferencesBodySchema } from "../preferences/preferences.validation.js"
 
 const emailSchema = z.string().trim().email().max(160).transform((email) => email.toLowerCase());
 const codeSchema = z.string().trim().regex(/^\d{6}$/, "Use the 6 digit code");
+const birthdaySchema = z.union([
+  z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+  z.literal(""),
+  z.null()
+]);
 
 const strongPasswordSchema = z.string()
   .min(8, "Password must be at least 8 characters")
@@ -101,6 +106,21 @@ export const logoutSchema = refreshSchema;
 
 export const preferencesSchema = z.object({
   body: preferencesBodySchema,
+  params: z.object({}),
+  query: z.object({})
+});
+
+export const profileSchema = z.object({
+  body: z.object({
+    birthday: birthdaySchema.optional(),
+    avatarUrl: z.union([
+      z.string().trim().max(900000),
+      z.literal(""),
+      z.null()
+    ]).optional()
+  }).refine((body) => Object.keys(body).length > 0, {
+    message: "Profile update payload is required"
+  }),
   params: z.object({}),
   query: z.object({})
 });

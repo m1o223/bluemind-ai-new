@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: ""
   },
+  birthday: {
+    type: String,
+    trim: true,
+    default: ""
+  },
   emailVerified: {
     type: Boolean,
     default: false
@@ -154,6 +159,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     email: this.email,
     authProvider: this.authProvider,
     avatarUrl: this.avatarUrl,
+    birthday: this.birthday || "",
     emailVerified: this.emailVerified,
     lastLoginAt: this.lastLoginAt,
     preferences: {

@@ -38,3 +38,16 @@ export async function linkGoogleIdentity(user, profile) {
   await user.save();
   return user;
 }
+
+export async function updateUserProfile(user, patch) {
+  if (Object.prototype.hasOwnProperty.call(patch, "birthday")) {
+    user.birthday = patch.birthday || "";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "avatarUrl")) {
+    user.avatarUrl = patch.avatarUrl || "";
+  }
+
+  await user.save();
+  return user.toSafeObject();
+}
