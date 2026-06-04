@@ -42,6 +42,8 @@ export function normalizePreferences(preferences = {}) {
     language: appLanguage,
     aiLanguageMode,
     notificationsEnabled: preferences.notificationsEnabled !== false,
+    birthdayGreetings: preferences.birthdayGreetings !== false,
+    animations: preferences.animations !== false,
     notificationPreferences,
     openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
   };
@@ -104,6 +106,7 @@ export async function updateUserPreferences(user, patch) {
           : "AI response language: auto-detect from the conversation.",
         `Theme: ${next.theme}.`,
         `App color: ${next.appColor}. Chat color: ${next.chatColor}.`,
+        `Birthday greetings: ${next.birthdayGreetings ? "enabled" : "disabled"}. Animations: ${next.animations ? "enabled" : "reduced"}.`,
         next.openAppDirectlyToChat
           ? "Preferred app entry: open directly to chat."
           : "Preferred app entry: open the Smart Hub first."

@@ -9,6 +9,8 @@ export const DEFAULT_USER_PREFERENCES = {
   language: "en",
   aiLanguageMode: "auto",
   notificationsEnabled: true,
+  birthdayGreetings: true,
+  animations: true,
   notificationPreferences: {
     ai: {
       taskCompleted: false,
@@ -61,6 +63,9 @@ export const DEFAULT_USER_PREFERENCES = {
       appUpdates: false,
       maintenanceAnnouncements: false,
       serviceAlerts: false
+    },
+    birthday: {
+      greetings: true
     },
     channels: {
       push: true,

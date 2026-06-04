@@ -138,6 +138,14 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    birthdayGreetings: {
+      type: Boolean,
+      default: true
+    },
+    animations: {
+      type: Boolean,
+      default: true
+    },
     notificationPreferences: {
       type: mongoose.Schema.Types.Mixed,
       default: undefined
@@ -175,6 +183,8 @@ userSchema.methods.toSafeObject = function toSafeObject() {
       accentColor: appColor,
       chatColor: preferences.chatColor || "#193B68",
       notificationsEnabled: preferences.notificationsEnabled !== false,
+      birthdayGreetings: preferences.birthdayGreetings !== false,
+      animations: preferences.animations !== false,
       notificationPreferences: preferences.notificationPreferences || undefined,
       openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
     },

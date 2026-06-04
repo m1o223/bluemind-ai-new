@@ -57,6 +57,9 @@ const notificationPreferencesSchema = z.object({
     maintenanceAnnouncements: z.boolean().optional(),
     serviceAlerts: z.boolean().optional()
   }).partial().optional(),
+  birthday: z.object({
+    greetings: z.boolean().optional()
+  }).partial().optional(),
   channels: z.object({
     push: z.boolean().optional(),
     email: z.boolean().optional(),
@@ -73,6 +76,8 @@ export const preferencesBodySchema = z.object({
   accentColor: colorSchema.optional(),
   chatColor: colorSchema.optional(),
   notificationsEnabled: z.boolean().optional(),
+  birthdayGreetings: z.boolean().optional(),
+  animations: z.boolean().optional(),
   notificationPreferences: notificationPreferencesSchema,
   openAppDirectlyToChat: z.boolean().optional()
 }).strict().refine((body) => Object.keys(body).length > 0, {
