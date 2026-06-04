@@ -7,6 +7,7 @@ import memoryRoutes from "../modules/memory/memory.routes.js";
 import preferencesRoutes from "../modules/preferences/preferences.routes.js";
 import reminderRoutes from "../modules/reminders/reminder.routes.js";
 import studyPlanRoutes from "../modules/study-plans/study-plan.routes.js";
+import supportRoutes from "../modules/support/support.routes.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/memory", memoryRoutes);
 router.use("/preferences", preferencesRoutes);
 router.use("/reminders", reminderRoutes);
 router.use("/study-plans", studyPlanRoutes);
+router.use("/support", supportRoutes);
 
 export default router;

@@ -97,6 +97,64 @@ function buildHtml({ title, intro, code, outro, actionLabel, actionUrl }) {
   `.trim();
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildSupportIssueHtml({ title, description, accountEmail, timestamp, appVersion, platform }) {
+  const rows = [
+    ["Account email", accountEmail],
+    ["Timestamp", timestamp],
+    ["App version", appVersion],
+    ["Platform", platform]
+  ].map(([label, value]) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5ebf3;color:#64748b;font-size:13px;font-weight:700">${escapeHtml(label)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5ebf3;color:#0f172a;font-size:14px;font-weight:600">${escapeHtml(value)}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+      </head>
+      <body style="margin:0;background:#f6f8fb;font-family:Inter,Arial,sans-serif;color:#101827">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f8fb;padding:28px 12px">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #e5ebf3;border-radius:22px;overflow:hidden;box-shadow:0 14px 45px rgba(15,23,42,.08)">
+                <tr>
+                  <td style="padding:28px 30px 16px">
+                    <div style="font-size:13px;font-weight:900;color:#193B68;letter-spacing:.04em;text-transform:uppercase">BlueMind AI Support</div>
+                    <h1 style="font-size:26px;line-height:1.25;margin:10px 0 0;color:#0f172a">${escapeHtml(title)}</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 30px 22px">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e5ebf3;border-radius:16px;overflow:hidden">
+                      ${rows}
+                    </table>
+                    <h2 style="font-size:16px;margin:24px 0 8px;color:#0f172a">Issue description</h2>
+                    <div style="white-space:pre-wrap;font-size:15px;line-height:1.7;color:#334155;background:#f8fafc;border:1px solid #e5ebf3;border-radius:16px;padding:16px">${escapeHtml(description)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `.trim();
+}
+
 function hasPlaceholderSmtpPassword() {
   return !env.SMTP_PASS || env.SMTP_PASS.trim() === "GMAIL_APP_PASSWORD";
 }
@@ -235,7 +293,7 @@ async function getSmtpTransporter() {
   return smtpTransporterPromise;
 }
 
-async function sendWithSmtp({ to, subject, text, html }) {
+async function sendWithSmtp({ to, subject, text, html, attachments }) {
   try {
     const transporter = await getSmtpTransporter();
     return await withEmailTimeout(transporter.sendMail({
@@ -243,7 +301,8 @@ async function sendWithSmtp({ to, subject, text, html }) {
       to,
       subject,
       text,
-      html
+      html,
+      attachments
     }));
   } catch (error) {
     smtpTransporterPromise = undefined;
@@ -251,7 +310,7 @@ async function sendWithSmtp({ to, subject, text, html }) {
   }
 }
 
-async function sendWithResend({ to, subject, text, html }) {
+async function sendWithResend({ to, subject, text, html, attachments }) {
   if (!env.RESEND_API_KEY) {
     throw new AppError("Email provider is not configured", 503, "EMAIL_PROVIDER_NOT_CONFIGURED", {
       provider: "resend",
@@ -270,7 +329,8 @@ async function sendWithResend({ to, subject, text, html }) {
       to: [to],
       subject,
       text,
-      html
+      html,
+      attachments
     })
   }));
 
@@ -330,17 +390,17 @@ async function sendWithRetry(operation, context) {
   throw new AppError("Could not send email. Please try again later.", 502, "EMAIL_SEND_FAILED");
 }
 
-async function sendEmail({ to, subject, text, html, auditCode, purpose }) {
+async function sendEmail({ to, subject, text, html, attachments, auditCode, purpose }) {
   if (env.EMAIL_PROVIDER === "smtp") {
     return sendWithRetry(
-      () => sendWithSmtp({ to, subject, text, html }),
+      () => sendWithSmtp({ to, subject, text, html, attachments }),
       { to, purpose, provider: "smtp" }
     );
   }
 
   if (env.EMAIL_PROVIDER === "resend") {
     return sendWithRetry(
-      () => sendWithResend({ to, subject, text, html }),
+      () => sendWithResend({ to, subject, text, html, attachments }),
       { to, purpose, provider: "resend" }
     );
   }
@@ -422,5 +482,39 @@ export function sendEmailChangeVerification({ to, name, code }) {
       code,
       outro
     })
+  });
+}
+
+export function sendSupportIssueReport({ user, title, description, platform, appVersion, timestamp, attachments = [] }) {
+  const accountEmail = user?.email || "Unknown";
+  const subject = `[BlueMind Issue] ${title}`;
+  const text = [
+    "BlueMind AI issue report",
+    "",
+    `Title: ${title}`,
+    `Account email: ${accountEmail}`,
+    `Timestamp: ${timestamp}`,
+    `App version: ${appVersion}`,
+    `Platform: ${platform}`,
+    "",
+    "Description:",
+    description
+  ].join("\n");
+
+  return sendEmail({
+    to: "supportbluemindai@gmail.com",
+    subject,
+    purpose: "support_issue_report",
+    auditCode: title,
+    text,
+    html: buildSupportIssueHtml({
+      title,
+      description,
+      accountEmail,
+      timestamp,
+      appVersion,
+      platform
+    }),
+    attachments
   });
 }
