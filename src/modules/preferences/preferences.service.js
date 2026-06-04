@@ -31,6 +31,7 @@ export function normalizePreferences(preferences = {}) {
   const aiLanguageMode = AI_LANGUAGE_MODES.includes(preferences.aiLanguageMode)
     ? preferences.aiLanguageMode
     : DEFAULT_USER_PREFERENCES.aiLanguageMode;
+  const notificationPreferences = mergeNotificationPreferences(preferences.notificationPreferences);
 
   return {
     theme: preferences.theme || DEFAULT_USER_PREFERENCES.theme,
@@ -41,8 +42,19 @@ export function normalizePreferences(preferences = {}) {
     language: appLanguage,
     aiLanguageMode,
     notificationsEnabled: preferences.notificationsEnabled !== false,
+    notificationPreferences,
     openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
   };
+}
+
+function mergeNotificationPreferences(preferences = {}) {
+  return Object.fromEntries(Object.entries(DEFAULT_USER_PREFERENCES.notificationPreferences).map(([section, defaults]) => ([
+    section,
+    {
+      ...defaults,
+      ...((preferences && typeof preferences[section] === "object") ? preferences[section] : {})
+    }
+  ])));
 }
 
 export function toPreferencesResponse(user) {
@@ -76,7 +88,8 @@ export async function updateUserPreferences(user, patch) {
     ...(user.preferences?.toObject?.() || user.preferences || {}),
     ...next,
     language: next.appLanguage,
-    accentColor: next.appColor
+    accentColor: next.appColor,
+    notificationPreferences: next.notificationPreferences
   };
   await user.save();
 

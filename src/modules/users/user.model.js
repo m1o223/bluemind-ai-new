@@ -138,6 +138,10 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    notificationPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined
+    },
     openAppDirectlyToChat: {
       type: Boolean,
       default: false
@@ -171,6 +175,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
       accentColor: appColor,
       chatColor: preferences.chatColor || "#193B68",
       notificationsEnabled: preferences.notificationsEnabled !== false,
+      notificationPreferences: preferences.notificationPreferences || undefined,
       openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
     },
     createdAt: this.createdAt,

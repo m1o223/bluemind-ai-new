@@ -114,6 +114,15 @@ function buildWebPushPayload(payload) {
   };
 }
 
+function canSendReminderPush(user) {
+  const preferences = normalizePreferences(user.preferences);
+  const notificationPreferences = preferences.notificationPreferences || {};
+
+  return preferences.notificationsEnabled !== false
+    && notificationPreferences.channels?.push !== false
+    && notificationPreferences.reminders?.alerts !== false;
+}
+
 function splitNotificationDevices(deviceTokens) {
   const webPush = [];
   const firebase = [];
@@ -207,6 +216,14 @@ export async function sendReminderTestNotification(userId, input = {}) {
 
   if (!user) {
     return { delivered: false, error: "User was not found" };
+  }
+
+  if (!canSendReminderPush(user)) {
+    return {
+      delivered: false,
+      skipped: true,
+      error: "Push notifications are disabled in user preferences"
+    };
   }
 
   const deepLink = input.url || DEFAULT_NOTIFICATION_DEEP_LINK;
@@ -394,6 +411,20 @@ export async function deliverReminderNotification(queueItem) {
   if (!user) {
     await markQueueItemCancelled(queueItem, "Reminder user was not found");
     return { delivered: false, cancelled: true };
+  }
+
+  if (!canSendReminderPush(user)) {
+    const result = {
+      skipped: true,
+      error: "Reminder push notifications disabled by user preferences",
+      successCount: 0,
+      failureCount: 0
+    };
+
+    await markReminderNotificationSent(reminder, result);
+    await markQueueItemSent(queueItem, result);
+    logger.info({ reminderId: reminder._id }, "Reminder notification skipped: disabled by preferences");
+    return { delivered: true, skipped: true };
   }
 
   const payload = buildNotificationPayload({ reminder, user });
