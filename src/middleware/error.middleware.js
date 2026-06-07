@@ -36,7 +36,7 @@ export function errorMiddleware(error, req, res, next) {
     error: {
       code: error.code || "INTERNAL_ERROR",
       message,
-      ...(env.NODE_ENV === "production" && isServerError ? {} : { details: error.details })
+      ...(!isServerError && error.details ? { details: error.details } : {})
     }
   });
 }
