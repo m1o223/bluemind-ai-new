@@ -167,6 +167,43 @@ function smtpPassword() {
   return env.SMTP_PASS;
 }
 
+function smtpTransportOptions(overrides = {}) {
+  return {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    connectionTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    greetingTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    socketTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    auth: {
+      user: env.SMTP_USER,
+      pass: smtpPassword()
+    },
+    tls: {
+      rejectUnauthorized: env.SMTP_REJECT_UNAUTHORIZED
+    },
+    ...overrides
+  };
+}
+
+function smtpConnectionCandidates() {
+  const primary = smtpTransportOptions();
+  const candidates = [primary];
+  const isGmail = /(^|\.)gmail\.com$/i.test(env.SMTP_HOST || "") || /smtp\.gmail\.com/i.test(env.SMTP_HOST || "");
+
+  if (isGmail && (env.SMTP_PORT !== 465 || env.SMTP_SECURE !== true)) {
+    candidates.push(smtpTransportOptions({ port: 465, secure: true }));
+  }
+
+  if (isGmail && (env.SMTP_PORT !== 587 || env.SMTP_SECURE !== false)) {
+    candidates.push(smtpTransportOptions({ port: 587, secure: false }));
+  }
+
+  return candidates.filter((candidate, index, list) => (
+    list.findIndex((item) => item.host === candidate.host && item.port === candidate.port && item.secure === candidate.secure) === index
+  ));
+}
+
 function emailProviderDetails(error, provider) {
   if (error instanceof AppError && error.details) {
     return {
@@ -226,17 +263,38 @@ function emailFailureMessage(details) {
   return "Email delivery failed. Check backend SMTP logs for the provider response.";
 }
 
-function toEmailSendError(error, provider) {
+function publicEmailFailureMessage(purpose) {
+  if (purpose === "password_reset") {
+    return "We couldn't send the reset code right now. Please try again later.";
+  }
+
+  if (purpose === "email_verification" || purpose === "email_change") {
+    return "We couldn't send the verification code right now. Please try again later.";
+  }
+
+  if (purpose === "support_issue_report") {
+    return "We couldn't send your support request right now. Please try again later.";
+  }
+
+  return "We couldn't send this email right now. Please try again later.";
+}
+
+function toEmailSendError(error, provider, purpose) {
   const details = {
     ...emailProviderDetails(error, provider),
     ...(error instanceof AppError && error.details ? error.details : {})
   };
+  const technicalMessage = emailFailureMessage(details);
 
   return new AppError(
-    emailFailureMessage(details),
+    publicEmailFailureMessage(purpose),
     error?.statusCode || 502,
     "EMAIL_SEND_FAILED",
-    details
+    {
+      ...details,
+      purpose,
+      technicalMessage
+    }
   );
 }
 
@@ -254,32 +312,36 @@ async function createSmtpTransporter() {
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    connectionTimeout: env.EMAIL_SEND_TIMEOUT_MS,
-    greetingTimeout: env.EMAIL_SEND_TIMEOUT_MS,
-    socketTimeout: env.EMAIL_SEND_TIMEOUT_MS,
-    auth: {
-      user: env.SMTP_USER,
-      pass: smtpPassword()
-    },
-    tls: {
-      rejectUnauthorized: env.SMTP_REJECT_UNAUTHORIZED
+  let lastError;
+
+  for (const options of smtpConnectionCandidates()) {
+    const transporter = nodemailer.createTransport(options);
+
+    try {
+      await withEmailTimeout(transporter.verify());
+      logger.info({
+        provider: "smtp",
+        host: options.host,
+        port: options.port,
+        secure: options.secure,
+        from: env.EMAIL_FROM
+      }, "SMTP connected");
+
+      return transporter;
+    } catch (error) {
+      lastError = error;
+      transporter.close?.();
+      logger.warn({
+        err: error,
+        provider: "smtp",
+        host: options.host,
+        port: options.port,
+        secure: options.secure
+      }, "SMTP connection attempt failed");
     }
-  });
+  }
 
-  await withEmailTimeout(transporter.verify());
-  logger.info({
-    provider: "smtp",
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    from: env.EMAIL_FROM
-  }, "SMTP connected");
-
-  return transporter;
+  throw lastError;
 }
 
 async function getSmtpTransporter() {
@@ -380,7 +442,7 @@ async function sendWithRetry(operation, context) {
       }, isFinalAttempt || shouldStop ? "Email send failed" : "Email send failed; retrying");
 
       if (isFinalAttempt || shouldStop) {
-        throw toEmailSendError(error, context.provider);
+        throw toEmailSendError(error, context.provider, context.purpose);
       }
 
       await wait(env.EMAIL_SEND_RETRY_DELAY_MS * attempt);
