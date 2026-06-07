@@ -37,9 +37,8 @@ function sendAuthResponse(res, statusCode, result) {
   }
 
   setRefreshCookie(res, result.refreshToken);
-  const { refreshToken: _refreshToken, ...safeResult } = result;
 
-  sendResponse(res, statusCode, safeResult);
+  sendResponse(res, statusCode, result);
 }
 
 export const register = asyncHandler(async (req, res) => {

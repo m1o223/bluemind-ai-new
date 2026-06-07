@@ -6,6 +6,10 @@ import { AppError } from "../../utils/AppError.js";
 
 let smtpTransporterPromise;
 
+function effectiveEmailTimeoutMs() {
+  return Math.min(env.EMAIL_SEND_TIMEOUT_MS, 12000);
+}
+
 function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -16,10 +20,10 @@ function withEmailTimeout(promise) {
   let timeout;
   const timeoutPromise = new Promise((_, reject) => {
     timeout = setTimeout(() => {
-      const error = new Error(`Email provider timed out after ${env.EMAIL_SEND_TIMEOUT_MS}ms`);
+      const error = new Error(`Email provider timed out after ${effectiveEmailTimeoutMs()}ms`);
       error.code = "EMAIL_PROVIDER_TIMEOUT";
       reject(error);
-    }, env.EMAIL_SEND_TIMEOUT_MS);
+    }, effectiveEmailTimeoutMs());
   });
 
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
@@ -172,9 +176,9 @@ function smtpTransportOptions(overrides = {}) {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
-    connectionTimeout: env.EMAIL_SEND_TIMEOUT_MS,
-    greetingTimeout: env.EMAIL_SEND_TIMEOUT_MS,
-    socketTimeout: env.EMAIL_SEND_TIMEOUT_MS,
+    connectionTimeout: effectiveEmailTimeoutMs(),
+    greetingTimeout: effectiveEmailTimeoutMs(),
+    socketTimeout: effectiveEmailTimeoutMs(),
     auth: {
       user: env.SMTP_USER,
       pass: smtpPassword()
@@ -188,8 +192,14 @@ function smtpTransportOptions(overrides = {}) {
 
 function smtpConnectionCandidates() {
   const primary = smtpTransportOptions();
-  const candidates = [primary];
+  const candidates = [];
   const isGmail = /(^|\.)gmail\.com$/i.test(env.SMTP_HOST || "") || /smtp\.gmail\.com/i.test(env.SMTP_HOST || "");
+
+  if (isGmail) {
+    candidates.push(smtpTransportOptions({ port: 465, secure: true }));
+  }
+
+  candidates.push(primary);
 
   if (isGmail && (env.SMTP_PORT !== 465 || env.SMTP_SECURE !== true)) {
     candidates.push(smtpTransportOptions({ port: 465, secure: true }));
@@ -234,6 +244,7 @@ function isNonRetryableEmailError(error) {
   return (
     error instanceof AppError ||
     error?.code === "EAUTH" ||
+    error?.code === "EMAIL_PROVIDER_TIMEOUT" ||
     error?.responseCode === 535 ||
     /badcredentials|username and password not accepted|invalid login/i.test(error?.response || error?.message || "")
   );
