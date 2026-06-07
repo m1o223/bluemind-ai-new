@@ -125,15 +125,6 @@ export const profileSchema = z.object({
   query: z.object({})
 });
 
-export const googleCallbackSchema = z.object({
-  body: z.object({}),
-  params: z.object({}),
-  query: z.object({
-    code: z.string().trim().min(1),
-    state: z.string().trim().min(1)
-  })
-});
-
 export const firebaseGoogleLoginSchema = z.object({
   body: z.object({
     idToken: z.string().trim().min(20)

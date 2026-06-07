@@ -2,10 +2,8 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { sendResponse } from "../../utils/sendResponse.js";
 import { updateUserProfile as updateUserProfileData } from "../users/user.service.js";
 import {
-  clearOAuthStateCookie,
   clearRefreshCookie,
   readCookie,
-  setOAuthStateCookie,
   setRefreshCookie
 } from "./auth.cookies.js";
 import {
@@ -24,10 +22,7 @@ import {
   updateUserPreferences
 } from "./auth.service.js";
 import {
-  createGoogleAuthorization,
   loginWithFirebaseGoogleToken,
-  loginWithGoogleCode,
-  verifyGoogleState
 } from "./google.service.js";
 import { env } from "../../config/env.js";
 
@@ -263,66 +258,4 @@ export const updatePassword = asyncHandler(async (req, res) => {
   }, "Password changed");
 
   sendResponse(res, 200, result);
-});
-
-export const startGoogleLogin = asyncHandler(async (req, res) => {
-  req.log.info({
-    authFlow: "google_start",
-    origin: req.headers.origin,
-    accept: req.headers.accept
-  }, "Google auth start requested");
-
-  try {
-    const { url, state } = createGoogleAuthorization();
-    setOAuthStateCookie(res, state);
-    req.log.info({ authFlow: "google_start" }, "Google auth redirect created");
-    res.redirect(url);
-  } catch (error) {
-    req.log.warn({
-      authFlow: "google_start",
-      code: error.code,
-      message: error.message
-    }, "Google auth start failed");
-
-    const wantsHtml = req.headers.accept?.includes("text/html");
-
-    if (wantsHtml && error.code === "GOOGLE_OAUTH_NOT_CONFIGURED") {
-      const redirectUrl = new URL("/auth/login", env.FRONTEND_URL);
-      redirectUrl.searchParams.set("authError", error.code);
-      res.redirect(redirectUrl.toString());
-      return;
-    }
-
-    throw error;
-  }
-});
-
-export const googleCallback = asyncHandler(async (req, res) => {
-  const stateCookie = readCookie(req, env.AUTH_OAUTH_STATE_COOKIE_NAME);
-  req.log.info({
-    authFlow: "google_callback",
-    hasCode: Boolean(req.validated.query.code),
-    hasState: Boolean(req.validated.query.state),
-    hasStateCookie: Boolean(stateCookie)
-  }, "Google auth callback started");
-
-  verifyGoogleState({
-    state: req.validated.query.state,
-    stateCookie
-  });
-
-  const result = await loginWithGoogleCode({
-    code: req.validated.query.code,
-    req
-  });
-
-  setRefreshCookie(res, result.refreshToken);
-  clearOAuthStateCookie(res);
-  req.log.info({
-    authFlow: "google_callback",
-    userId: result.user.id,
-    sessionId: result.session.id,
-    email: result.user.email
-  }, "Google auth callback succeeded");
-  res.redirect(`${env.FRONTEND_URL}/auth/google/callback`);
 });

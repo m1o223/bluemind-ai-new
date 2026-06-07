@@ -56,33 +56,6 @@ export function verifyRefreshToken(token) {
   }
 }
 
-export function signOAuthState(payload) {
-  return jwt.sign(
-    {
-      ...payload,
-      type: "oauth_state"
-    },
-    env.JWT_SECRET,
-    {
-      expiresIn: "10m"
-    }
-  );
-}
-
-export function verifyOAuthState(token) {
-  try {
-    const payload = jwt.verify(token, env.JWT_SECRET);
-
-    if (payload.type !== "oauth_state") {
-      throw new Error("Invalid state type");
-    }
-
-    return payload;
-  } catch {
-    throw new AppError("Invalid Google sign-in state", 401, "GOOGLE_OAUTH_STATE_INVALID");
-  }
-}
-
 export function createTokenId() {
   return crypto.randomUUID();
 }

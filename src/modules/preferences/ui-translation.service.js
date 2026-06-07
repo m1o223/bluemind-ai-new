@@ -177,7 +177,6 @@ const fallbackBaseTranslation = {
   newEmail: "New email",
   codeSentTo: "Code sent to {{email}}",
   confirm: "Confirm",
-  googleOAuthNotConfigured: "Google sign-in is not configured yet. Add Google OAuth credentials in the backend environment.",
   loginFailed: "Login failed. Please check your email and password.",
   registrationFailed: "Registration failed. Please check your details and try again.",
   accountCreatedCheckEmail: "Account created. Check your email for the verification code.",

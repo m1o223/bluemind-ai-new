@@ -40,15 +40,3 @@ export function setRefreshCookie(res, refreshToken) {
 export function clearRefreshCookie(res) {
   res.clearCookie(env.AUTH_REFRESH_COOKIE_NAME, cookieOptions(0));
 }
-
-export function setOAuthStateCookie(res, state) {
-  res.cookie(
-    env.AUTH_OAUTH_STATE_COOKIE_NAME,
-    state,
-    cookieOptions(10 * 60 * 1000)
-  );
-}
-
-export function clearOAuthStateCookie(res) {
-  res.clearCookie(env.AUTH_OAUTH_STATE_COOKIE_NAME, cookieOptions(0));
-}
