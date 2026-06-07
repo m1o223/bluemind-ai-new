@@ -25,6 +25,7 @@ import {
 } from "./auth.service.js";
 import {
   createGoogleAuthorization,
+  loginWithFirebaseGoogleToken,
   loginWithGoogleCode,
   verifyGoogleState
 } from "./google.service.js";
@@ -131,6 +132,28 @@ export const login = asyncHandler(async (req, res) => {
     sessionId: result.session.id,
     email: result.user.email
   }, "Auth login succeeded");
+
+  sendAuthResponse(res, 200, result);
+});
+
+export const firebaseGoogleLogin = asyncHandler(async (req, res) => {
+  req.log.info({
+    authFlow: "firebase_google",
+    origin: req.headers.origin,
+    hasCookie: Boolean(req.headers.cookie)
+  }, "Firebase Google auth started");
+
+  const result = await loginWithFirebaseGoogleToken({
+    idToken: req.validated.body.idToken,
+    req
+  });
+
+  req.log.info({
+    authFlow: "firebase_google",
+    userId: result.user.id,
+    sessionId: result.session.id,
+    email: result.user.email
+  }, "Firebase Google auth succeeded");
 
   sendAuthResponse(res, 200, result);
 });

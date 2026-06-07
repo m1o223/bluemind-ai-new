@@ -12,6 +12,7 @@ import {
 } from "../users/user.service.js";
 import { createAuthSession } from "./session.service.js";
 import { signOAuthState, verifyOAuthState } from "./token.service.js";
+import { verifyFirebaseIdToken } from "./firebase-auth.service.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -146,6 +147,16 @@ export async function loginWithGoogleCode({ code, req }) {
 
   const tokens = await exchangeCodeForTokens(code);
   const profile = await verifyGoogleIdToken(tokens.id_token);
+
+  return loginWithGoogleProfile({ profile, req });
+}
+
+export async function loginWithFirebaseGoogleToken({ idToken, req }) {
+  const profile = await verifyFirebaseIdToken(idToken);
+  return loginWithGoogleProfile({ profile, req });
+}
+
+async function loginWithGoogleProfile({ profile, req }) {
   let user = await findUserByGoogleId(profile.googleId);
 
   if (!user) {

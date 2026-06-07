@@ -133,3 +133,11 @@ export const googleCallbackSchema = z.object({
     state: z.string().trim().min(1)
   })
 });
+
+export const firebaseGoogleLoginSchema = z.object({
+  body: z.object({
+    idToken: z.string().trim().min(20)
+  }),
+  params: z.object({}),
+  query: z.object({})
+});

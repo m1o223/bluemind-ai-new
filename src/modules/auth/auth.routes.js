@@ -5,9 +5,9 @@ import { requireAuth } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
 import {
   confirmChangeEmail,
+  firebaseGoogleLogin,
   forgotPassword,
   getMe,
-  googleCallback,
   guest,
   login,
   logout,
@@ -16,7 +16,6 @@ import {
   register,
   resendVerification,
   resetPasswordWithCode,
-  startGoogleLogin,
   updatePassword,
   updateProfile,
   verifyEmailCode,
@@ -27,7 +26,7 @@ import {
   changeEmailRequestSchema,
   changePasswordSchema,
   forgotPasswordSchema,
-  googleCallbackSchema,
+  firebaseGoogleLoginSchema,
   loginSchema,
   logoutSchema,
   profileSchema,
@@ -65,6 +64,7 @@ const authCodeLimiter = rateLimit({
 
 router.post("/register", authAttemptLimiter, validate(registerSchema), register);
 router.post("/login", authAttemptLimiter, validate(loginSchema), login);
+router.post("/firebase/google", authAttemptLimiter, validate(firebaseGoogleLoginSchema), firebaseGoogleLogin);
 router.post("/guest", authAttemptLimiter, guest);
 router.post("/verify-email", authCodeLimiter, validate(verifyEmailSchema), verifyEmailCode);
 router.post("/resend-verification", authCodeLimiter, validate(resendVerificationSchema), resendVerification);
@@ -72,8 +72,6 @@ router.post("/forgot-password", authCodeLimiter, validate(forgotPasswordSchema),
 router.post("/reset-password", authCodeLimiter, validate(resetPasswordSchema), resetPasswordWithCode);
 router.post("/refresh", validate(refreshSchema), refresh);
 router.post("/logout", validate(logoutSchema), logout);
-router.get("/google", startGoogleLogin);
-router.get("/google/callback", validate(googleCallbackSchema), googleCallback);
 router.get("/me", requireAuth, getMe);
 router.patch("/profile", requireAuth, validate(profileSchema), updateProfile);
 router.patch("/preferences", requireAuth, validate(preferencesSchema), updatePreferences);
