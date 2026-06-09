@@ -12,8 +12,10 @@ import {
   renameChatConversation
 } from "../chat/chat.service.js";
 import { PrivateSpace } from "./privateSpace.model.js";
+import { Conversation } from "../memory/conversation.model.js";
 
 const PRIVATE_SPACE_ACCESS_TTL = "30m";
+const MAX_PRIVATE_SPACES = 5;
 
 function toPrivateSpaceResponse(space) {
   return {
@@ -46,6 +48,15 @@ async function findOwnedPrivateSpace(userId, privateSpaceId, options = {}) {
 }
 
 export async function createPrivateSpace({ userId, name, pin }) {
+  const count = await PrivateSpace.countDocuments({
+    userId,
+    deletedAt: { $exists: false }
+  });
+
+  if (count >= MAX_PRIVATE_SPACES) {
+    throw new AppError("Maximum private chats reached. Delete one before creating another.", 400, "PRIVATE_SPACE_LIMIT_REACHED");
+  }
+
   const created = await PrivateSpace.create({
     userId,
     name,
@@ -54,6 +65,52 @@ export async function createPrivateSpace({ userId, name, pin }) {
 
   return {
     privateSpace: toPrivateSpaceResponse(created)
+  };
+}
+
+export async function renamePrivateSpace({ userId, privateSpaceId, name }) {
+  const space = await findOwnedPrivateSpace(userId, privateSpaceId);
+  space.name = name;
+  await space.save();
+
+  return {
+    privateSpace: toPrivateSpaceResponse(space)
+  };
+}
+
+export async function changePrivateSpacePin({ userId, privateSpaceId, currentPin, newPin }) {
+  const space = await findOwnedPrivateSpace(userId, privateSpaceId, { includePin: true });
+  const isValid = await comparePassword(currentPin, space.hashedPin);
+
+  if (!isValid) {
+    throw new AppError("Incorrect PIN. Try again.", 401, "PRIVATE_SPACE_PIN_INVALID");
+  }
+
+  space.hashedPin = await hashPassword(newPin);
+  await space.save();
+
+  return {
+    privateSpace: toPrivateSpaceResponse(space)
+  };
+}
+
+export async function deletePrivateSpace({ userId, privateSpaceId }) {
+  const space = await findOwnedPrivateSpace(userId, privateSpaceId);
+  const now = new Date();
+  space.deletedAt = now;
+  await space.save();
+
+  await Conversation.updateMany({
+    userId,
+    privateSpaceId,
+    deletedAt: { $exists: false }
+  }, {
+    $set: { deletedAt: now }
+  });
+
+  return {
+    deleted: true,
+    privateSpaceId
   };
 }
 

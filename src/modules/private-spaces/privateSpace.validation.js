@@ -60,6 +60,31 @@ export const unlockPrivateSpaceSchema = z.object({
   query: z.object({})
 });
 
+export const renamePrivateSpaceSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1).max(80)
+  }).strict(),
+  params: z.object({
+    id: objectIdSchema
+  }),
+  query: z.object({})
+});
+
+export const changePrivateSpacePinSchema = z.object({
+  body: z.object({
+    currentPin: pinSchema,
+    newPin: pinSchema,
+    confirmNewPin: pinSchema
+  }).strict().refine((body) => body.newPin === body.confirmNewPin, {
+    message: "PINs do not match",
+    path: ["confirmNewPin"]
+  }),
+  params: z.object({
+    id: objectIdSchema
+  }),
+  query: z.object({})
+});
+
 export const privateSpaceChatParamsSchema = z.object({
   body: z.object({}),
   params: z.object({

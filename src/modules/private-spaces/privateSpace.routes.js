@@ -5,10 +5,13 @@ import { validate } from "../../middleware/validate.middleware.js";
 import {
   createSpace,
   createSpaceChat,
+  changeSpacePin,
+  deleteSpace,
   deleteSpaceChat,
   getSpaceChat,
   listSpaceChats,
   listSpaces,
+  renameSpace,
   sendSpaceMessage,
   streamSpaceMessage,
   renameSpaceChat,
@@ -16,9 +19,12 @@ import {
 } from "./privateSpace.controller.js";
 import {
   createPrivateSpaceSchema,
+  changePrivateSpacePinSchema,
   privateSpaceChatParamsSchema,
   privateSpaceConversationParamsSchema,
   privateSpaceMessageSchema,
+  privateSpaceParamsSchema,
+  renamePrivateSpaceSchema,
   unlockPrivateSpaceSchema
 } from "./privateSpace.validation.js";
 import { renameConversationSchema } from "../chat/chat.validation.js";
@@ -30,6 +36,9 @@ router.use(requireAuth);
 router.post("/", validate(createPrivateSpaceSchema), createSpace);
 router.get("/", listSpaces);
 router.post("/:id/unlock", validate(unlockPrivateSpaceSchema), unlockSpace);
+router.patch("/:id", validate(renamePrivateSpaceSchema), renameSpace);
+router.patch("/:id/pin", validate(changePrivateSpacePinSchema), changeSpacePin);
+router.delete("/:id", validate(privateSpaceParamsSchema), deleteSpace);
 router.get("/:id/chats", validate(privateSpaceChatParamsSchema), listSpaceChats);
 router.post("/:id/chats", validate(privateSpaceChatParamsSchema), createSpaceChat);
 router.get("/:id/chats/:conversationId", validate(privateSpaceConversationParamsSchema), getSpaceChat);

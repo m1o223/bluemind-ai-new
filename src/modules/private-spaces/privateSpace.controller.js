@@ -7,10 +7,13 @@ import { setupSse, writeSse, writeSseComment } from "../../utils/sse.js";
 import {
   createPrivateSpace,
   createPrivateSpaceChat,
+  changePrivateSpacePin,
+  deletePrivateSpace,
   deletePrivateSpaceChat,
   getPrivateSpaceChat,
   listPrivateSpaceChats,
   listPrivateSpaces,
+  renamePrivateSpace,
   sendPrivateSpaceMessage,
   streamPrivateSpaceMessage,
   renamePrivateSpaceChat,
@@ -43,6 +46,36 @@ export const unlockSpace = asyncHandler(async (req, res) => {
   });
 
   sendResponse(res, 200, result, "Private space unlocked");
+});
+
+export const renameSpace = asyncHandler(async (req, res) => {
+  const result = await renamePrivateSpace({
+    userId: req.user._id,
+    privateSpaceId: req.validated.params.id,
+    name: req.validated.body.name
+  });
+
+  sendResponse(res, 200, result, "Private chat renamed");
+});
+
+export const changeSpacePin = asyncHandler(async (req, res) => {
+  const result = await changePrivateSpacePin({
+    userId: req.user._id,
+    privateSpaceId: req.validated.params.id,
+    currentPin: req.validated.body.currentPin,
+    newPin: req.validated.body.newPin
+  });
+
+  sendResponse(res, 200, result, "PIN changed");
+});
+
+export const deleteSpace = asyncHandler(async (req, res) => {
+  const result = await deletePrivateSpace({
+    userId: req.user._id,
+    privateSpaceId: req.validated.params.id
+  });
+
+  sendResponse(res, 200, result, "Private chat deleted");
 });
 
 export const listSpaceChats = asyncHandler(async (req, res) => {
