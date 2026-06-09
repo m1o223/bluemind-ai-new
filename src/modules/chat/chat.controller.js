@@ -6,6 +6,7 @@ import { sendResponse } from "../../utils/sendResponse.js";
 import { setupSse, writeSse, writeSseComment } from "../../utils/sse.js";
 import {
   createChatReply,
+  createHiddenStreamingChatReply,
   createStreamingChatReply,
   deleteChatConversation,
   getChatConversation,
@@ -197,6 +198,83 @@ export async function streamChatMessage(req, res, next) {
       durationMs: Date.now() - startedAt
     }, "Streaming chat failed");
 
+    await writeSse(res, "error", toStreamErrorPayload(error, streamId));
+    await writeSse(res, "done", { streamId });
+    res.end();
+  } finally {
+    clearInterval(heartbeat);
+    req.off("close", abortOnClose);
+  }
+}
+
+export async function streamHiddenChatMessage(req, res, next) {
+  const streamId = randomUUID();
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+  let clientClosed = false;
+  let heartbeat;
+
+  function abortOnClose() {
+    if (!res.writableEnded) {
+      clientClosed = true;
+      abortController.abort();
+      req.log.info({ streamId }, "Hidden chat stream client disconnected");
+    }
+  }
+
+  req.on("close", abortOnClose);
+
+  try {
+    setupSse(res);
+    await writeSseComment(res, "BlueMind AI hidden streaming chat");
+    await writeSse(res, "connected", { streamId, mode: "sse" });
+
+    heartbeat = setInterval(() => {
+      void writeSse(res, "heartbeat", {
+        streamId,
+        timestamp: new Date().toISOString()
+      });
+    }, 15000);
+    heartbeat.unref?.();
+
+    const result = await createHiddenStreamingChatReply({
+      userId: req.user._id,
+      ...req.validated.body,
+      signal: abortController.signal,
+      onResponseStart: async (ai) => {
+        const written = await writeSse(res, "ai_start", { streamId, ai });
+        if (!written) abortController.abort();
+      },
+      onDelta: async ({ token, index, sequenceNumber }) => {
+        const written = await writeSse(res, "delta", {
+          streamId,
+          token,
+          index,
+          sequenceNumber
+        }, {
+          id: `${streamId}:${index}`
+        });
+        if (!written) abortController.abort();
+      }
+    });
+
+    await writeSse(res, "complete", { streamId, ...result });
+    await writeSse(res, "done", { streamId });
+    res.end();
+
+    req.log.info({ streamId, durationMs: Date.now() - startedAt }, "Hidden chat stream completed");
+  } catch (error) {
+    if (clientClosed || error.code === "AI_STREAM_ABORTED") {
+      req.log.info({ streamId, durationMs: Date.now() - startedAt }, "Hidden chat stream aborted");
+      return;
+    }
+
+    if (!res.headersSent) {
+      next(error);
+      return;
+    }
+
+    req.log.error({ streamId, err: error, durationMs: Date.now() - startedAt }, "Hidden chat stream failed");
     await writeSse(res, "error", toStreamErrorPayload(error, streamId));
     await writeSse(res, "done", { streamId });
     res.end();

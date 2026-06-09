@@ -1,33 +1,56 @@
 import { Conversation } from "./conversation.model.js";
 import { UserMemory } from "./userMemory.model.js";
 
-export function createConversation(userId) {
-  return Conversation.create({ userId });
+function conversationScopeFilter(privateSpaceId) {
+  if (privateSpaceId) {
+    return { privateSpaceId };
+  }
+
+  return {
+    $or: [
+      { privateSpaceId: { $exists: false } },
+      { privateSpaceId: null }
+    ]
+  };
 }
 
-export function findConversationById(conversationId, userId) {
-  return Conversation.findOne({ _id: conversationId, userId, deletedAt: { $exists: false } });
+export function createConversation(userId, options = {}) {
+  return Conversation.create({
+    userId,
+    ...(options.privateSpaceId ? { privateSpaceId: options.privateSpaceId } : {})
+  });
 }
 
-export function findLatestConversation(userId) {
+export function findConversationById(conversationId, userId, options = {}) {
+  return Conversation.findOne({
+    _id: conversationId,
+    userId,
+    deletedAt: { $exists: false },
+    ...conversationScopeFilter(options.privateSpaceId)
+  });
+}
+
+export function findLatestConversation(userId, options = {}) {
   return Conversation.findOne({
     userId,
     deletedAt: { $exists: false },
-    "messages.0": { $exists: true }
+    "messages.0": { $exists: true },
+    ...conversationScopeFilter(options.privateSpaceId)
   }).sort({ updatedAt: -1 });
 }
 
-export function listUserConversations(userId, limit = 20) {
+export function listUserConversations(userId, limit = 20, options = {}) {
   return Conversation.find({
     userId,
     deletedAt: { $exists: false },
-    "messages.0": { $exists: true }
+    "messages.0": { $exists: true },
+    ...conversationScopeFilter(options.privateSpaceId)
   })
     .sort({ updatedAt: -1 })
     .limit(limit);
 }
 
-export function searchUserConversations(userId, query, limit = 20) {
+export function searchUserConversations(userId, query, limit = 20, options = {}) {
   const safeQuery = String(query || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(safeQuery, "i");
 
@@ -35,6 +58,7 @@ export function searchUserConversations(userId, query, limit = 20) {
     userId,
     deletedAt: { $exists: false },
     "messages.0": { $exists: true },
+    ...conversationScopeFilter(options.privateSpaceId),
     $or: [
       { title: pattern },
       { "messages.content": pattern }

@@ -28,6 +28,11 @@ const conversationSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  privateSpaceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PrivateSpace",
+    index: true
+  },
   title: {
     type: String,
     trim: true,
@@ -57,5 +62,7 @@ const conversationSchema = new mongoose.Schema({
   timestamps: true,
   versionKey: false
 });
+
+conversationSchema.index({ userId: 1, privateSpaceId: 1, updatedAt: -1 });
 
 export const Conversation = mongoose.model("Conversation", conversationSchema);

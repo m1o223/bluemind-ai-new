@@ -10,12 +10,12 @@ import {
   updateUserMemory
 } from "./memory.repository.js";
 
-export async function getOrCreateConversation({ conversationId, userId }) {
+export async function getOrCreateConversation({ conversationId, userId, privateSpaceId }) {
   if (!conversationId) {
-    return createConversation(userId);
+    return createConversation(userId, { privateSpaceId });
   }
 
-  const conversation = await findConversationById(conversationId, userId);
+  const conversation = await findConversationById(conversationId, userId, { privateSpaceId });
 
   if (!conversation) {
     throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
@@ -40,6 +40,7 @@ export function getContextMessages(conversation) {
 export function toConversationMeta(conversation) {
   return {
     conversationId: conversation._id.toString(),
+    privateSpaceId: conversation.privateSpaceId?.toString(),
     title: conversation.title,
     messageCount: conversation.messages.length,
     summaryMessageCount: conversation.summaryMessageCount || 0,

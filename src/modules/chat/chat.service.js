@@ -303,6 +303,11 @@ const CHAT_MODE_INSTRUCTIONS = {
   create_image: [
     "The user selected Create Image mode.",
     "Help refine image prompts and describe generated-image intent clearly. If an image generation result is provided, explain it briefly."
+  ].join("\n"),
+  hidden: [
+    "The user is in Hidden Chat mode.",
+    "Do not rely on persistent conversation memory for this exchange.",
+    "Answer normally, but do not mention that the chat is temporary unless the user asks."
   ].join("\n")
 };
 
@@ -408,8 +413,8 @@ function applyChatModeInstruction(messages, metadata, responseModeName) {
   ];
 }
 
-export async function createChatReply({ userId, conversationId, message, imageIds = [], metadata, mode }) {
-  const conversation = await getOrCreateConversation({ userId, conversationId });
+export async function createChatReply({ userId, conversationId, privateSpaceId, message, imageIds = [], metadata, mode }) {
+  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
   const searchHandoffContext = getSearchHandoffContext(metadata);
@@ -465,6 +470,7 @@ export async function createChatReply({ userId, conversationId, message, imageId
 export async function createStreamingChatReply({
   userId,
   conversationId,
+  privateSpaceId,
   message,
   imageIds = [],
   metadata,
@@ -474,7 +480,7 @@ export async function createStreamingChatReply({
   onDelta,
   onResponseStart
 }) {
-  const conversation = await getOrCreateConversation({ userId, conversationId });
+  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
   const searchHandoffContext = getSearchHandoffContext(metadata);
@@ -534,8 +540,61 @@ export async function createStreamingChatReply({
   });
 }
 
-export async function listChatConversations(userId) {
-  const conversations = await listUserConversations(userId, 20);
+export async function createHiddenStreamingChatReply({
+  userId,
+  message,
+  imageIds = [],
+  metadata,
+  mode,
+  signal,
+  onDelta,
+  onResponseStart
+}) {
+  const user = await findUserById(userId);
+  const images = await resolveChatImages(userId, imageIds);
+  const userMessageContent = buildUserMessageContent(message, images, metadata);
+  const responseMode = buildResponseModeOptions(metadata, mode);
+  const baseMessages = [{
+    role: "user",
+    content: userMessageContent
+  }];
+  const aiInput = attachImagesToLatestUserMessage(baseMessages, images, userMessageContent);
+  const aiResult = await streamReply(applyChatModeInstruction(aiInput, {
+    ...(metadata || {}),
+    chatMode: metadata?.chatMode || "hidden"
+  }, mode), {
+    aiOptions: responseMode.aiOptions,
+    signal,
+    onDelta,
+    onResponseStart
+  });
+
+  return {
+    conversation: null,
+    message: {
+      id: `hidden-${Date.now()}`,
+      role: "assistant",
+      content: aiResult.content,
+      metadata: {
+        ...aiResult.metadata,
+        responseMode: responseMode.responseMode,
+        hiddenChat: true,
+        preferredLanguage: user?.preferences?.language
+      },
+      createdAt: new Date()
+    },
+    ai: buildAiResponse(aiResult.metadata),
+    memory: {
+      processing: {
+        skipped: true,
+        reason: "hidden_chat"
+      }
+    }
+  };
+}
+
+export async function listChatConversations(userId, options = {}) {
+  const conversations = await listUserConversations(userId, 20, options);
 
   return {
     items: conversations.map((conversation) => ({
@@ -556,8 +615,8 @@ function findMatchingMessage(conversation, query) {
   );
 }
 
-export async function searchChatConversations(userId, query, limit = 20) {
-  const conversations = await searchUserConversations(userId, query, limit);
+export async function searchChatConversations(userId, query, limit = 20, options = {}) {
+  const conversations = await searchUserConversations(userId, query, limit, options);
 
   return {
     items: conversations.map((conversation) => {
@@ -579,16 +638,16 @@ export async function searchChatConversations(userId, query, limit = 20) {
   };
 }
 
-export async function getLatestChatConversation(userId) {
-  const conversation = await findLatestConversation(userId);
+export async function getLatestChatConversation(userId, options = {}) {
+  const conversation = await findLatestConversation(userId, options);
 
   return {
     conversation: buildConversationResponse(conversation)
   };
 }
 
-export async function getChatConversation(userId, conversationId) {
-  const conversation = await findConversationById(conversationId, userId);
+export async function getChatConversation(userId, conversationId, options = {}) {
+  const conversation = await findConversationById(conversationId, userId, options);
 
   if (!conversation) {
     throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
@@ -599,8 +658,8 @@ export async function getChatConversation(userId, conversationId) {
   };
 }
 
-export async function renameChatConversation(userId, conversationId, title) {
-  const conversation = await findConversationById(conversationId, userId);
+export async function renameChatConversation(userId, conversationId, title, options = {}) {
+  const conversation = await findConversationById(conversationId, userId, options);
 
   if (!conversation) {
     throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
@@ -614,8 +673,8 @@ export async function renameChatConversation(userId, conversationId, title) {
   };
 }
 
-export async function deleteChatConversation(userId, conversationId) {
-  const conversation = await findConversationById(conversationId, userId);
+export async function deleteChatConversation(userId, conversationId, options = {}) {
+  const conversation = await findConversationById(conversationId, userId, options);
 
   if (!conversation) {
     throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");

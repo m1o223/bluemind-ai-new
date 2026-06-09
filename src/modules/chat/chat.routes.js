@@ -10,6 +10,7 @@ import {
   deleteConversation,
   renameConversation,
   sendChatMessage,
+  streamHiddenChatMessage,
   streamChatMessage
 } from "./chat.controller.js";
 import { chatConversationParamsSchema, chatMessageSchema, renameConversationSchema, searchConversationsSchema } from "./chat.validation.js";
@@ -34,6 +35,7 @@ function logChatRequest(req, _res, next) {
 
 router.post("/", requireAuth, logChatRequest, validate(chatMessageSchema), sendChatMessage);
 router.post("/stream", requireAuth, logChatRequest, validate(chatMessageSchema), streamChatMessage);
+router.post("/hidden/stream", requireAuth, logChatRequest, validate(chatMessageSchema), streamHiddenChatMessage);
 router.get("/conversations", requireAuth, listConversations);
 router.get("/conversations/search", requireAuth, validate(searchConversationsSchema), searchConversations);
 router.get("/conversations/latest", requireAuth, getLatestConversation);
