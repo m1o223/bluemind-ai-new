@@ -2,6 +2,7 @@ import { generateJson, generateReply, streamReply } from "../ai/ai.service.js";
 import { analyzeImagesForMemory, resolveChatImages } from "../images/image.service.js";
 import { buildChatContext } from "../memory/context-builder.service.js";
 import { processConversationMemory } from "../memory/memory-intelligence.service.js";
+import { processLearningProfileUpdate } from "../learning-profile/learningProfile.service.js";
 import {
   findConversationById,
   findLatestConversation,
@@ -435,6 +436,7 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
 
   const context = await buildChatContext({
     userId,
+    user,
     conversation,
     latestMessage: userMessageContent,
     preferences: user?.preferences
@@ -454,16 +456,18 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
   });
 
   const assistantMessage = conversation.messages.at(-1);
-  const [memoryProcessing, imageMemory] = await Promise.all([
+  const [memoryProcessing, imageMemory, learningProfile] = await Promise.all([
     processConversationMemory({ userId, conversation, preferences: user?.preferences }),
-    analyzeImagesForMemory(userId, images)
+    analyzeImagesForMemory(userId, images),
+    processLearningProfileUpdate({ user, conversation, latestUserMessage: userMessageContent })
   ]);
 
   await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
-    imageMemories: imageMemory.length
+    imageMemories: imageMemory.length,
+    learningProfile
   });
 }
 
@@ -503,6 +507,7 @@ export async function createStreamingChatReply({
 
   const context = await buildChatContext({
     userId,
+    user,
     conversation,
     latestMessage: userMessageContent,
     preferences: user?.preferences
@@ -527,16 +532,18 @@ export async function createStreamingChatReply({
   });
 
   const assistantMessage = conversation.messages.at(-1);
-  const [memoryProcessing, imageMemory] = await Promise.all([
+  const [memoryProcessing, imageMemory, learningProfile] = await Promise.all([
     processConversationMemory({ userId, conversation, preferences: user?.preferences }),
-    analyzeImagesForMemory(userId, images)
+    analyzeImagesForMemory(userId, images),
+    processLearningProfileUpdate({ user, conversation, latestUserMessage: userMessageContent })
   ]);
 
   await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
-    imageMemories: imageMemory.length
+    imageMemories: imageMemory.length,
+    learningProfile
   });
 }
 

@@ -4,6 +4,7 @@ import { rankMemories } from "./memory-ranking.service.js";
 import { CONTEXT_SYSTEM_HEADER } from "./memory.prompt.js";
 import { listUpcomingRemindersForContext } from "../reminders/reminder.repository.js";
 import { getLanguageName, normalizePreferences } from "../preferences/preferences.service.js";
+import { buildLearningProfileContext, getOrCreateLearningProfile } from "../learning-profile/learningProfile.service.js";
 
 function messageToInput(message) {
   return {
@@ -32,7 +33,7 @@ function formatReminder(reminder) {
   return `- [${reminder.priority}/${reminder.category}] ${reminder.title} at ${reminder.reminderDate} ${reminder.reminderTime} ${reminder.timezone};${before}`;
 }
 
-function buildMemoryContext({ conversation, pinned, profile, ranked, reminders, preferences }) {
+function buildMemoryContext({ conversation, pinned, profile, ranked, reminders, preferences, learningProfile }) {
   const sections = [CONTEXT_SYSTEM_HEADER];
   const normalizedPreferences = normalizePreferences(preferences);
   const languageName = getLanguageName(normalizedPreferences.appLanguage);
@@ -46,6 +47,8 @@ function buildMemoryContext({ conversation, pinned, profile, ranked, reminders, 
     aiLanguageInstruction,
     `- Theme: ${normalizedPreferences.theme}. App color: ${normalizedPreferences.appColor}. Chat color: ${normalizedPreferences.chatColor}.`
   ].join("\n"));
+
+  sections.push(buildLearningProfileContext(learningProfile));
 
   if (profile.length) {
     sections.push([
@@ -82,18 +85,19 @@ function buildMemoryContext({ conversation, pinned, profile, ranked, reminders, 
   return truncate(sections.join("\n\n"), env.MEMORY_CONTEXT_MAX_CHARS);
 }
 
-export async function buildChatContext({ userId, conversation, latestMessage, preferences }) {
+export async function buildChatContext({ userId, user, conversation, latestMessage, preferences }) {
   const query = [
     conversation.summary,
     latestMessage,
     ...conversation.messages.slice(-4).map((message) => message.content)
   ].filter(Boolean).join("\n");
 
-  const [activeMemories, pinnedMemories, profileMemories, upcomingReminders] = await Promise.all([
+  const [activeMemories, pinnedMemories, profileMemories, upcomingReminders, learningProfile] = await Promise.all([
     listActiveMemories(userId, 100),
     listPinnedMemories(userId, env.MEMORY_PINNED_LIMIT),
     listProfileMemories(userId, 20),
-    listUpcomingRemindersForContext(userId, 6)
+    listUpcomingRemindersForContext(userId, 6),
+    getOrCreateLearningProfile(user || userId)
   ]);
 
   const pinnedIds = new Set(pinnedMemories.map((memory) => memory._id.toString()));
@@ -114,7 +118,8 @@ export async function buildChatContext({ userId, conversation, latestMessage, pr
     profile: profileRanked,
     ranked,
     reminders: upcomingReminders,
-    preferences
+    preferences,
+    learningProfile
   });
   const recentMessages = conversation.messages
     .slice(-env.MEMORY_SHORT_TERM_MESSAGES)
@@ -136,6 +141,8 @@ export async function buildChatContext({ userId, conversation, latestMessage, pr
       profileMemories: profileRanked.length,
       retrievedMemories: ranked.length,
       upcomingReminders: upcomingReminders.length,
+      learningProfileLoaded: Boolean(learningProfile),
+      learningProfileUpdatedAt: learningProfile?.updatedAt,
       language: normalizePreferences(preferences).appLanguage,
       appLanguage: normalizePreferences(preferences).appLanguage,
       aiLanguageMode: normalizePreferences(preferences).aiLanguageMode,
