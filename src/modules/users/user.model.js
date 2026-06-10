@@ -134,6 +134,11 @@ const userSchema = new mongoose.Schema({
       enum: ["auto", "match_app"],
       default: "auto"
     },
+    aiMode: {
+      type: String,
+      enum: ["general", "study", "research", "work", "writing", "cooking"],
+      default: "general"
+    },
     notificationsEnabled: {
       type: Boolean,
       default: true
@@ -178,6 +183,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
       appLanguage,
       language: appLanguage,
       aiLanguageMode: ["auto", "match_app"].includes(preferences.aiLanguageMode) ? preferences.aiLanguageMode : "auto",
+      aiMode: ["general", "study", "research", "work", "writing", "cooking"].includes(preferences.aiMode) ? preferences.aiMode : "general",
       theme: preferences.theme || "system",
       appColor,
       accentColor: appColor,

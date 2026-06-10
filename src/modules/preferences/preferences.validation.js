@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AI_LANGUAGE_MODES, THEME_VALUES } from "./preferences.constants.js";
+import { AI_CHAT_MODES, AI_LANGUAGE_MODES, THEME_VALUES } from "./preferences.constants.js";
 
 const colorSchema = z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/, "Use a hex color like #193B68");
 const languageSchema = z.string().trim().min(2).max(35).regex(/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/, "Use a valid BCP-47 language code");
@@ -71,6 +71,7 @@ export const preferencesBodySchema = z.object({
   language: languageSchema.optional(),
   appLanguage: languageSchema.optional(),
   aiLanguageMode: z.enum(AI_LANGUAGE_MODES).optional(),
+  aiMode: z.enum(AI_CHAT_MODES).optional(),
   theme: z.enum(THEME_VALUES).optional(),
   appColor: colorSchema.optional(),
   accentColor: colorSchema.optional(),

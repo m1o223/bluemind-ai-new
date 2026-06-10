@@ -312,62 +312,114 @@ const CHAT_MODE_INSTRUCTIONS = {
   ].join("\n")
 };
 
-const RESPONSE_MODE_ALIASES = {
-  instant: "fast",
-  default: "smart",
-  balanced: "smart",
-  thinking: "thinking",
-  deep_thinking: "thinking"
+const AI_MODE_ALIASES = {
+  instant: "general",
+  fast: "general",
+  smart: "general",
+  default: "general",
+  balanced: "general",
+  thinking: "research",
+  deep_thinking: "research",
+  deep_research: "research",
+  write_edit: "writing"
 };
 
-const RESPONSE_MODE_CONFIG = {
-  fast: {
-    id: "fast",
-    label: "Fast",
-    model: () => env.OPENAI_INSTANT_MODEL || env.OPENAI_MODEL,
-    temperature: 0.25,
-    maxOutputTokens: 900,
-    reasoningEffort: "low",
-    instruction: [
-      "Response mode: Fast.",
-      "Prioritize fastest response time, directness, and lower token usage.",
-      "Use lightweight reasoning, answer succinctly, and avoid unnecessary preamble."
-    ].join("\n")
-  },
-  smart: {
-    id: "smart",
-    label: "Smart",
-    model: () => env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
+const AI_MODE_CONFIG = {
+  general: {
+    id: "general",
+    label: "General",
+    model: () => env.OPENAI_MODEL,
     temperature: 0.55,
     maxOutputTokens: 1800,
     reasoningEffort: "medium",
     instruction: [
-      "Response mode: Smart.",
-      "Balance speed and quality with better reasoning than Fast mode.",
-      "Give a clear, useful medium-length answer with enough explanation to be trustworthy, without becoming verbose."
+      "AI mode: General.",
+      "Use normal BlueMind AI behavior for everyday questions, casual conversations, and general help.",
+      "Do not force educational learning-profile behavior unless the user is clearly studying or asking for learning help."
     ].join("\n")
   },
-  thinking: {
-    id: "thinking",
-    label: "Thinking",
+  study: {
+    id: "study",
+    label: "Study",
     model: () => env.OPENAI_DEEP_THINKING_MODEL || env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
-    temperature: 0.45,
-    maxOutputTokens: 3200,
+    temperature: 0.25,
+    maxOutputTokens: 3000,
     reasoningEffort: "high",
     instruction: [
-      "Response mode: Thinking.",
-      "Analyze the problem deeply before responding.",
-      "Use deeper reasoning for coding, problem solving, planning, and analysis.",
-      "Consider edge cases, tradeoffs, assumptions, and the user's underlying goal.",
-      "Use a longer, more accurate structured answer when the task is complex, but keep it readable."
+      "AI mode: Study.",
+      "Act like a careful, patient teacher. Educational accuracy is more important than speed.",
+      "For educational information, prefer trusted educational sources and source material over general memory.",
+      "For Swedish education, prioritize Skolverket (Swedish National Agency for Education) when curriculum, course descriptions, educational standards, or national guidance are relevant.",
+      "If the user provides a textbook image, page image, chapter, lesson, or quoted school material, treat that as the primary source and explain from it first.",
+      "Do not invent educational facts, curriculum details, page references, standards, formulas, or textbook content.",
+      "If confidence is low or source material is missing, say you are not fully confident or need more information to answer accurately.",
+      "When useful, ask for the book name, chapter, page number, image of the page, or screenshot.",
+      "Use the Learning Profile for educational contexts: adapt explanation style, examples, detail level, tone, and learning method naturally.",
+      "After explaining, you may gently check understanding, for example by inviting the user to explain the idea back in their own words.",
+      "If the user says they do not understand, is confused, or says phrases like 'I don't understand' or 'ما فهمت', first ask what part was unclear and offer options: too long, difficult words, need examples, need images/diagram, need step-by-step, did not understand the main idea, understood the idea but not the formula, or something else.",
+      "If the user says they do not know why it was confusing, reassure them kindly without pressure or blame, vary the wording naturally, and offer simpler explanation, examples, images, diagrams, step-by-step, analogies, or starting from the beginning.",
+      "Never make the student feel stupid."
+    ].join("\n")
+  },
+  research: {
+    id: "research",
+    label: "Research",
+    model: () => env.OPENAI_DEEP_THINKING_MODEL || env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
+    temperature: 0.35,
+    maxOutputTokens: 3400,
+    reasoningEffort: "high",
+    instruction: [
+      "AI mode: Research.",
+      "Provide deeper analysis, compare viewpoints or sources when source context is available, and explain uncertainty clearly.",
+      "Be analytical and structured. Distinguish facts, assumptions, uncertainty, and next research steps.",
+      "Do not invent citations or sources. If live or provided source context is missing, say what would need verification."
+    ].join("\n")
+  },
+  work: {
+    id: "work",
+    label: "Work",
+    model: () => env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
+    temperature: 0.45,
+    maxOutputTokens: 2200,
+    reasoningEffort: "medium",
+    instruction: [
+      "AI mode: Work.",
+      "Focus on productivity, planning, documents, business tasks, organization, decision support, and practical next actions.",
+      "Prefer clear structure, concrete steps, useful templates, and concise professional language."
+    ].join("\n")
+  },
+  writing: {
+    id: "writing",
+    label: "Writing",
+    model: () => env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
+    temperature: 0.5,
+    maxOutputTokens: 2600,
+    reasoningEffort: "medium",
+    instruction: [
+      "AI mode: Writing.",
+      "Focus on rewriting, essays, articles, reports, clarity, tone, structure, grammar, and writing quality.",
+      "When drafting human-facing text, produce polished content that is easy to edit and reuse."
+    ].join("\n")
+  },
+  cooking: {
+    id: "cooking",
+    label: "Cooking",
+    model: () => env.OPENAI_THINKING_MODEL || env.OPENAI_MODEL,
+    temperature: 0.55,
+    maxOutputTokens: 2200,
+    reasoningEffort: "medium",
+    instruction: [
+      "AI mode: Cooking.",
+      "Focus on recipes, ingredients, substitutions, cooking instructions, timing, safety, and practical kitchen steps.",
+      "Ask about dietary restrictions, equipment, servings, or available ingredients when needed."
     ].join("\n")
   }
 };
 
 function normalizeResponseMode(metadata, mode) {
-  const rawValue = String(mode || metadata?.mode || metadata?.responseMode || metadata?.thinkingMode || "smart").trim().toLowerCase();
-  const value = RESPONSE_MODE_ALIASES[rawValue] || rawValue;
-  return RESPONSE_MODE_CONFIG[value] ? value : "smart";
+  const rawValue = String(mode || metadata?.mode || metadata?.responseMode || metadata?.aiMode || metadata?.thinkingMode || "general").trim().toLowerCase();
+  const value = AI_MODE_ALIASES[rawValue] || rawValue;
+  return AI_MODE_CONFIG[value] ? value : "general";
 }
 
 function supportsReasoningEffort(model) {
@@ -375,7 +427,7 @@ function supportsReasoningEffort(model) {
 }
 
 function buildResponseModeOptions(metadata, mode) {
-  const config = RESPONSE_MODE_CONFIG[normalizeResponseMode(metadata, mode)];
+  const config = AI_MODE_CONFIG[normalizeResponseMode(metadata, mode)];
   const model = config.model();
   const aiOptions = {
     model,
@@ -391,6 +443,7 @@ function buildResponseModeOptions(metadata, mode) {
 
   return {
     responseMode: config.id,
+    aiMode: config.id,
     aiOptions,
     instruction: config.instruction
   };
@@ -421,6 +474,7 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
   const searchHandoffContext = getSearchHandoffContext(metadata);
   const hiddenSearchHandoff = Boolean(searchHandoffContext && !message && !images.length);
   const userMessageContent = buildUserMessageContent(message, images, metadata);
+  const selectedAiMode = normalizeResponseMode(metadata, mode || user?.preferences?.aiMode);
 
   await appendMessage(conversation, {
     role: "user",
@@ -429,7 +483,8 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
       ...(metadata || {}),
       hiddenFromChat: hiddenSearchHandoff || undefined,
       searchHandoff: searchHandoffContext || undefined,
-      mode: normalizeResponseMode(metadata, mode),
+      mode: selectedAiMode,
+      aiMode: selectedAiMode,
       attachments: buildAttachmentMetadata(images)
     }
   });
@@ -442,8 +497,8 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
-  const responseMode = buildResponseModeOptions(metadata, mode);
-  const aiResult = await generateReply(applyChatModeInstruction(aiInput, metadata, mode), responseMode.aiOptions);
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
+  const aiResult = await generateReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), responseMode.aiOptions);
 
   await appendMessage(conversation, {
     role: "assistant",
@@ -451,6 +506,7 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
     metadata: {
       ...aiResult.metadata,
       responseMode: responseMode.responseMode,
+      aiMode: responseMode.aiMode,
       memory: context.metadata
     }
   });
@@ -490,6 +546,7 @@ export async function createStreamingChatReply({
   const searchHandoffContext = getSearchHandoffContext(metadata);
   const hiddenSearchHandoff = Boolean(searchHandoffContext && !message && !images.length);
   const userMessageContent = buildUserMessageContent(message, images, metadata);
+  const selectedAiMode = normalizeResponseMode(metadata, mode || user?.preferences?.aiMode);
 
   await appendMessage(conversation, {
     role: "user",
@@ -498,7 +555,8 @@ export async function createStreamingChatReply({
       ...(metadata || {}),
       hiddenFromChat: hiddenSearchHandoff || undefined,
       searchHandoff: searchHandoffContext || undefined,
-      mode: normalizeResponseMode(metadata, mode),
+      mode: selectedAiMode,
+      aiMode: selectedAiMode,
       attachments: buildAttachmentMetadata(images)
     }
   });
@@ -513,8 +571,8 @@ export async function createStreamingChatReply({
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
-  const responseMode = buildResponseModeOptions(metadata, mode);
-  const aiResult = await streamReply(applyChatModeInstruction(aiInput, metadata, mode), {
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
+  const aiResult = await streamReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), {
     aiOptions: responseMode.aiOptions,
     signal,
     onDelta,
@@ -527,6 +585,7 @@ export async function createStreamingChatReply({
     metadata: {
       ...aiResult.metadata,
       responseMode: responseMode.responseMode,
+      aiMode: responseMode.aiMode,
       memory: context.metadata
     }
   });
@@ -560,7 +619,8 @@ export async function createHiddenStreamingChatReply({
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
   const userMessageContent = buildUserMessageContent(message, images, metadata);
-  const responseMode = buildResponseModeOptions(metadata, mode);
+  const selectedAiMode = normalizeResponseMode(metadata, mode || user?.preferences?.aiMode);
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
   const baseMessages = [{
     role: "user",
     content: userMessageContent
@@ -569,7 +629,7 @@ export async function createHiddenStreamingChatReply({
   const aiResult = await streamReply(applyChatModeInstruction(aiInput, {
     ...(metadata || {}),
     chatMode: metadata?.chatMode || "hidden"
-  }, mode), {
+  }, selectedAiMode), {
     aiOptions: responseMode.aiOptions,
     signal,
     onDelta,
@@ -585,6 +645,7 @@ export async function createHiddenStreamingChatReply({
       metadata: {
         ...aiResult.metadata,
         responseMode: responseMode.responseMode,
+        aiMode: responseMode.aiMode,
         hiddenChat: true,
         preferredLanguage: user?.preferences?.language
       },

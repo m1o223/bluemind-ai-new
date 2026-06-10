@@ -1,6 +1,6 @@
 import { upsertUserMemory } from "../memory/memory.repository.js";
 import { logger } from "../../config/logger.js";
-import { AI_LANGUAGE_MODES, DEFAULT_USER_PREFERENCES, RTL_LANGUAGES } from "./preferences.constants.js";
+import { AI_CHAT_MODES, AI_LANGUAGE_MODES, DEFAULT_USER_PREFERENCES, RTL_LANGUAGES } from "./preferences.constants.js";
 
 export function normalizeLanguage(language) {
   return String(language || DEFAULT_USER_PREFERENCES.language)
@@ -31,6 +31,9 @@ export function normalizePreferences(preferences = {}) {
   const aiLanguageMode = AI_LANGUAGE_MODES.includes(preferences.aiLanguageMode)
     ? preferences.aiLanguageMode
     : DEFAULT_USER_PREFERENCES.aiLanguageMode;
+  const aiMode = AI_CHAT_MODES.includes(preferences.aiMode)
+    ? preferences.aiMode
+    : DEFAULT_USER_PREFERENCES.aiMode;
   const notificationPreferences = mergeNotificationPreferences(preferences.notificationPreferences);
 
   return {
@@ -41,6 +44,7 @@ export function normalizePreferences(preferences = {}) {
     appLanguage,
     language: appLanguage,
     aiLanguageMode,
+    aiMode,
     notificationsEnabled: preferences.notificationsEnabled !== false,
     birthdayGreetings: preferences.birthdayGreetings !== false,
     animations: preferences.animations !== false,
@@ -104,6 +108,7 @@ export async function updateUserPreferences(user, patch) {
         next.aiLanguageMode === "match_app"
           ? `AI response language: always match app language ${getLanguageName(next.appLanguage)} (${next.appLanguage}).`
           : "AI response language: auto-detect from the conversation.",
+        `Selected Chat AI mode: ${next.aiMode}.`,
         `Theme: ${next.theme}.`,
         `App color: ${next.appColor}. Chat color: ${next.chatColor}.`,
         `Birthday greetings: ${next.birthdayGreetings ? "enabled" : "disabled"}. Animations: ${next.animations ? "enabled" : "reduced"}.`,
@@ -111,7 +116,7 @@ export async function updateUserPreferences(user, patch) {
           ? "Preferred app entry: open directly to chat."
           : "Preferred app entry: open the Smart Hub first."
       ].join(" "),
-      tags: ["profile", "preferences", "language", next.appLanguage, next.aiLanguageMode, next.theme],
+      tags: ["profile", "preferences", "language", next.appLanguage, next.aiLanguageMode, next.theme, next.aiMode],
       importance: 0.75,
       confidence: 1,
       pinned: false,

@@ -4,6 +4,19 @@ const objectIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid pri
 const conversationIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid conversationId");
 const imageIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid imageId");
 const pinSchema = z.string().trim().regex(/^\d{4,}$/, "PIN must be at least 4 digits");
+const aiModeSchema = z.enum([
+  "general",
+  "study",
+  "research",
+  "work",
+  "writing",
+  "cooking",
+  "fast",
+  "smart",
+  "thinking",
+  "instant",
+  "deep_thinking"
+]);
 
 function hasSearchHandoff(metadata) {
   if (!metadata || typeof metadata !== "object") {
@@ -107,7 +120,7 @@ export const privateSpaceMessageSchema = z.object({
     conversationId: conversationIdSchema.optional(),
     message: z.string().trim().min(1).max(8000).optional(),
     imageIds: z.array(imageIdSchema).max(4).default([]),
-    mode: z.enum(["fast", "smart", "thinking", "instant", "deep_thinking"]).optional(),
+    mode: aiModeSchema.optional(),
     metadata: z.record(z.unknown()).optional(),
     privateSpaceAccessToken: z.string().trim().optional()
   }).strict().refine((body) => Boolean(body.message || body.imageIds.length || hasSearchHandoff(body.metadata)), {

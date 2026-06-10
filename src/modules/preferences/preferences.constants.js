@@ -1,5 +1,6 @@
 export const THEME_VALUES = ["light", "dark", "system"];
 export const AI_LANGUAGE_MODES = ["auto", "match_app"];
+export const AI_CHAT_MODES = ["general", "study", "research", "work", "writing", "cooking"];
 
 export const DEFAULT_USER_PREFERENCES = {
   theme: "system",
@@ -8,6 +9,7 @@ export const DEFAULT_USER_PREFERENCES = {
   appLanguage: "en",
   language: "en",
   aiLanguageMode: "auto",
+  aiMode: "general",
   notificationsEnabled: true,
   birthdayGreetings: true,
   animations: true,
