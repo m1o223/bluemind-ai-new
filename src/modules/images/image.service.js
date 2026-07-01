@@ -233,12 +233,13 @@ export async function analyzeImage(userId, imageId, { prompt } = {}, preferences
           {
             type: "input_image",
             image_url: dataUrl,
-            detail: "auto"
+            detail: "high"
           }
         ]
       }
     ],
-    temperature: 0.1
+    temperature: 0.1,
+    maxOutputTokens: 5000
   });
 
   asset.analysis = {

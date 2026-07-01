@@ -275,7 +275,7 @@ function attachImagesToLatestUserMessage(messages, images, fallbackText) {
       ...images.map((image) => ({
         type: "input_image",
         image_url: image.dataUrl,
-        detail: "auto"
+        detail: "high"
       }))
     ]
   };
@@ -311,6 +311,14 @@ const CHAT_MODE_INSTRUCTIONS = {
     "Answer normally, but do not mention that the chat is temporary unless the user asks."
   ].join("\n")
 };
+
+const SCHEDULE_ASSISTANT_INSTRUCTION = [
+  "The user is working inside the Schedule Workspace.",
+  "When schedule/timetable images are attached, analyze the entire image at document level: all day columns, all time rows, all subjects/classes/activities, breaks, lunch, free periods, and repeated blocks.",
+  "Preserve the original day/time/activity mapping. Do not answer from only the first day, first column, or first visible cluster.",
+  "If OCR/extraction context includes SCHEDULE_IMPORT lines, use them as the authoritative schedule layout map.",
+  "For official schedules, help import exactly as provided and do not suggest changes unless the user asks."
+].join("\n");
 
 const AI_MODE_ALIASES = {
   instant: "general",
@@ -452,7 +460,11 @@ function buildResponseModeOptions(metadata, mode) {
 function applyChatModeInstruction(messages, metadata, responseModeName) {
   const chatMode = metadata?.chatMode;
   const responseMode = buildResponseModeOptions(metadata, responseModeName);
-  const instructions = [responseMode.instruction, CHAT_MODE_INSTRUCTIONS[chatMode]].filter(Boolean);
+  const instructions = [
+    responseMode.instruction,
+    CHAT_MODE_INSTRUCTIONS[chatMode],
+    metadata?.scheduleAssistant ? SCHEDULE_ASSISTANT_INSTRUCTION : ""
+  ].filter(Boolean);
 
   if (!instructions.length) {
     return messages;

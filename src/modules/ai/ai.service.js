@@ -133,9 +133,9 @@ export async function generateReply(messages, options = {}) {
   }
 }
 
-export async function generateJson({ instructions, input, schema, name, temperature = 0.2, model }) {
+export async function generateJson({ instructions, input, schema, name, temperature = 0.2, model, maxOutputTokens }) {
   try {
-    const response = await openai.responses.create({
+    const request = {
       model: model || (hasImageInput(input) ? env.OPENAI_VISION_MODEL : env.OPENAI_MODEL),
       instructions,
       input,
@@ -148,7 +148,13 @@ export async function generateJson({ instructions, input, schema, name, temperat
           strict: false
         }
       }
-    });
+    };
+
+    if (maxOutputTokens) {
+      request.max_output_tokens = maxOutputTokens;
+    }
+
+    const response = await openai.responses.create(request);
     const content = extractOutputText(response);
 
     if (!content) {
