@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
@@ -10,6 +11,8 @@ import {
   deleteConversation,
   renameConversation,
   sendChatMessage,
+  createVoiceSpeech,
+  transcribeVoiceMessage,
   streamHiddenChatMessage,
   streamChatMessage
 } from "./chat.controller.js";
@@ -36,6 +39,8 @@ function logChatRequest(req, _res, next) {
 router.post("/", requireAuth, logChatRequest, validate(chatMessageSchema), sendChatMessage);
 router.post("/stream", requireAuth, logChatRequest, validate(chatMessageSchema), streamChatMessage);
 router.post("/hidden/stream", requireAuth, logChatRequest, validate(chatMessageSchema), streamHiddenChatMessage);
+router.post("/voice/transcribe", requireAuth, express.raw({ type: "audio/*", limit: "12mb" }), transcribeVoiceMessage);
+router.post("/voice/speech", requireAuth, createVoiceSpeech);
 router.get("/conversations", requireAuth, listConversations);
 router.get("/conversations/search", requireAuth, validate(searchConversationsSchema), searchConversations);
 router.get("/conversations/latest", requireAuth, getLatestConversation);

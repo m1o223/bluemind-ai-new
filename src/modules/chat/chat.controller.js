@@ -15,6 +15,7 @@ import {
   renameChatConversation,
   searchChatConversations
 } from "./chat.service.js";
+import { synthesizeSpeech, transcribeAudio } from "./voice.service.js";
 
 export const sendChatMessage = asyncHandler(async (req, res) => {
   const result = await createChatReply({
@@ -23,6 +24,27 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
   });
 
   sendResponse(res, 200, result);
+});
+
+export const transcribeVoiceMessage = asyncHandler(async (req, res) => {
+  const result = await transcribeAudio({
+    buffer: req.body,
+    contentType: req.headers["content-type"]
+  });
+
+  sendResponse(res, 200, result);
+});
+
+export const createVoiceSpeech = asyncHandler(async (req, res) => {
+  const result = await synthesizeSpeech({
+    text: req.body?.text
+  });
+
+  res.setHeader("Content-Type", result.contentType);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-BlueMind-Voice-Model", result.model);
+  res.setHeader("X-BlueMind-Voice", result.voice);
+  res.status(200).send(result.buffer);
 });
 
 export const listConversations = asyncHandler(async (req, res) => {
