@@ -13,7 +13,7 @@ If the image is a document, timetable, calendar, table, form, screenshot, receip
 - transcribe all readable text that matters to the user's task
 - for schedules or timetables, read every visible day/column, every time row/slot, every class/activity, breaks, lunch, free periods, and repeated items
 - for schedules or timetables, include importable lines in extractedText when possible using this exact format:
-  SCHEDULE_IMPORT: Monday | 09:00 | 09:50 | Mathematics
+  SCHEDULE_IMPORT: Monday | 09:00 | 09:50 | Math
 
 Return only structured JSON.
 `.trim();

@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import authRoutes from "../modules/auth/auth.routes.js";
 import chatRoutes from "../modules/chat/chat.routes.js";
+import documentRoutes from "../modules/documents/document.routes.js";
 import imageRoutes from "../modules/images/image.routes.js";
 import memoryRoutes from "../modules/memory/memory.routes.js";
 import preferencesRoutes from "../modules/preferences/preferences.routes.js";
@@ -21,6 +22,7 @@ router.get("/", (_req, res) => {
 
 router.use("/auth", authRoutes);
 router.use("/chat", chatRoutes);
+router.use("/documents", documentRoutes);
 router.use("/images", imageRoutes);
 router.use("/memory", memoryRoutes);
 router.use("/preferences", preferencesRoutes);

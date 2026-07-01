@@ -75,6 +75,7 @@ const envSchema = z.object({
   DEFAULT_TIMEZONE: z.string().trim().default("UTC"),
   IMAGE_UPLOAD_DIR: z.string().trim().default("uploads/images"),
   IMAGE_UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
+  DOCUMENT_UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(12 * 1024 * 1024),
   IMAGE_CHAT_MAX_ATTACHMENTS: z.coerce.number().int().min(1).max(8).default(4),
   IMAGE_GENERATION_MAX_RESULTS: z.coerce.number().int().min(1).max(4).default(1),
   REMINDER_SCHEDULER_ENABLED: z.coerce.boolean().default(true),

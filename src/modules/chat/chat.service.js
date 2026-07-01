@@ -314,9 +314,11 @@ const CHAT_MODE_INSTRUCTIONS = {
 
 const SCHEDULE_ASSISTANT_INSTRUCTION = [
   "The user is working inside the Schedule Workspace.",
-  "When schedule/timetable images are attached, analyze the entire image at document level: all day columns, all time rows, all subjects/classes/activities, breaks, lunch, free periods, and repeated blocks.",
+  "When schedule/timetable images or documents are attached, analyze the entire file at document level: all day columns, all time rows, dates, subjects/classes/activities, shifts, breaks, lunch, free periods, merged cells, empty cells, recurring blocks, and repeated blocks.",
+  "Automatically detect whether the upload is a school timetable, university schedule, work schedule, shift planner, employee roster, calendar, PDF, spreadsheet, Word document, screenshot, printed timetable, or readable handwritten timetable.",
   "Preserve the original day/time/activity mapping. Do not answer from only the first day, first column, or first visible cluster.",
   "If OCR/extraction context includes SCHEDULE_IMPORT lines, use them as the authoritative schedule layout map.",
+  "Use clean labels such as Math, Eng, Sci, Swe, Bio, Chem, Hist, Geo, PE, Lunch, Break, Shift, Meeting, and Office when appropriate.",
   "For official schedules, help import exactly as provided and do not suggest changes unless the user asks."
 ].join("\n");
 
