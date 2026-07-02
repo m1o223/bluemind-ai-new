@@ -24,6 +24,8 @@ const scheduleDocumentSchema = {
         properties: {
           day: { type: "string" },
           date: { type: "string" },
+          weekNumber: { type: "number" },
+          weekYear: { type: "number" },
           start: { type: "string" },
           end: { type: "string" },
           title: { type: "string" },
@@ -322,7 +324,10 @@ function extractDocumentText({ buffer, documentType }) {
 function buildScheduleLines(events = []) {
   return events
     .filter((event) => event.day && event.start && event.end && (event.label || event.title))
-    .map((event) => `SCHEDULE_IMPORT: ${event.day} | ${event.start} | ${event.end} | ${event.label || event.title}`)
+    .map((event) => {
+      const datePrefix = event.date ? `${event.date} | ` : "";
+      return `SCHEDULE_IMPORT: ${datePrefix}${event.day} | ${event.start} | ${event.end} | ${event.label || event.title}`;
+    })
     .join("\n");
 }
 
@@ -333,16 +338,19 @@ function buildDocumentInstructions(preferences) {
   return [
     "You are BlueMind AI's document-aware schedule analyst.",
     "The user uploaded a timetable, roster, calendar, spreadsheet, PDF, Word document, image-derived text, or other schedule-like document.",
+    `Today's date is ${new Date().toISOString().slice(0, 10)}. Use it only for resolving missing years when the source clearly implies the current year.`,
     "Automatically detect the document type and schedule type. The user should not need to explain what the file is.",
-    "Understand structure before extracting events: rows, columns, weekdays, dates, time ranges, merged cells, recurring events, breaks, lunch, empty cells, and reading order.",
+    "Understand structure before extracting events: rows, columns, ISO week number, calendar dates, weekdays, time ranges, merged cells, recurring events, breaks, lunch, empty cells, and reading order.",
     "Reconstruct the timetable exactly as the original document describes it. Preserve day/time/activity mapping and original order.",
+    "Every event must include the real ISO date in YYYY-MM-DD when the document provides or implies it. If the source uses compact dates such as 260727, interpret them as YYMMDD and convert them to 2026-07-27.",
+    "Detect the ISO week number and week-year for dated schedules. For example, Monday 2026-07-27 belongs to ISO Week 31 of 2026.",
     "Events must not overlap unless the source document actually contains overlapping events.",
     "If merged cells span multiple rows or slots, use the first covered start time and the final covered end time.",
     "Categorize each event as Education, Work, Fitness, Nutrition, Personal, Break, Travel, Health, Home, or Other.",
     "Generate clean professional labels. Examples: Mathematics=Math, Physical Education=PE, English=Eng, Science=Sci, Swedish=Swe, Biology=Bio, Chemistry=Chem, History=Hist, Geography=Geo, Lunch=Lunch, Break=Break.",
     "Return one event per real schedule block. Do not duplicate empty cells. Do not invent times or days that are not supported by the document.",
     "If a day/date or time is ambiguous, include a warning and set confidence lower.",
-    "scheduleText must contain one import line per event in exactly this format: SCHEDULE_IMPORT: Monday | 09:00 | 09:50 | Math",
+    "scheduleText must contain one import line per event in exactly this date-aware format: SCHEDULE_IMPORT: 2026-07-27 | Monday | 09:00 | 09:50 | Math",
     `The user's preferred language is ${languageName} (${normalizedPreferences.language}), but weekday names in scheduleText must be English Monday through Sunday and times must be 24-hour HH:MM.`
   ].join("\n");
 }
