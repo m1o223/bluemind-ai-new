@@ -1,4 +1,5 @@
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 import { openai } from "../../config/openai.js";
 import { AppError } from "../../utils/AppError.js";
 import { SYSTEM_PROMPT } from "./ai.prompt.js";
@@ -68,6 +69,31 @@ function buildMetadata(response) {
   };
 }
 
+function buildRequestDiagnostics(request, messages) {
+  const input = Array.isArray(messages) ? messages : [];
+  return {
+    provider: AI_PROVIDER,
+    model: request.model,
+    stream: Boolean(request.stream),
+    inputMessages: input.length,
+    hasImageInput: hasImageInput(input),
+    maxOutputTokens: request.max_output_tokens,
+    temperature: request.temperature
+  };
+}
+
+function buildProviderErrorDiagnostics(error) {
+  return {
+    provider: AI_PROVIDER,
+    providerStatus: error?.status,
+    providerCode: error?.code,
+    providerType: error?.type,
+    providerParam: error?.param,
+    providerMessage: error?.message,
+    requestId: error?.request_id || error?.requestID
+  };
+}
+
 function toAiError(error) {
   if (error instanceof AppError) {
     return error;
@@ -116,44 +142,62 @@ function toStreamEventError(event) {
 }
 
 export async function generateReply(messages, options = {}) {
+  const request = buildRequest(messages, options);
+  const diagnostics = buildRequestDiagnostics(request, messages);
+
   try {
-    const response = await openai.responses.create(buildRequest(messages, options));
+    logger.info(diagnostics, "OpenAI response request started");
+    const response = await openai.responses.create(request);
     const content = extractOutputText(response);
 
     if (!content) {
       throw new AppError("AI provider returned an empty response", 502, "AI_EMPTY_RESPONSE");
     }
 
+    logger.info({
+      ...diagnostics,
+      response: buildMetadata(response),
+      outputChars: content.length
+    }, "OpenAI response request completed");
+
     return {
       content,
       metadata: buildMetadata(response)
     };
   } catch (error) {
+    logger.error({
+      ...diagnostics,
+      err: error,
+      providerError: buildProviderErrorDiagnostics(error)
+    }, "OpenAI response request failed");
     throw toAiError(error);
   }
 }
 
 export async function generateJson({ instructions, input, schema, name, temperature = 0.2, model, maxOutputTokens }) {
-  try {
-    const request = {
-      model: model || (hasImageInput(input) ? env.OPENAI_VISION_MODEL : env.OPENAI_MODEL),
-      instructions,
-      input,
-      temperature,
-      text: {
-        format: {
-          type: "json_schema",
-          name,
-          schema,
-          strict: false
-        }
+  const request = {
+    model: model || (hasImageInput(input) ? env.OPENAI_VISION_MODEL : env.OPENAI_MODEL),
+    instructions,
+    input,
+    temperature,
+    text: {
+      format: {
+        type: "json_schema",
+        name,
+        schema,
+        strict: false
       }
-    };
-
-    if (maxOutputTokens) {
-      request.max_output_tokens = maxOutputTokens;
     }
+  };
 
+  if (maxOutputTokens) {
+    request.max_output_tokens = maxOutputTokens;
+  }
+
+  const diagnostics = buildRequestDiagnostics(request, input);
+
+  try {
+    logger.info(buildRequestDiagnostics(request, input), "OpenAI JSON request started");
     const response = await openai.responses.create(request);
     const content = extractOutputText(response);
 
@@ -161,11 +205,23 @@ export async function generateJson({ instructions, input, schema, name, temperat
       throw new AppError("AI provider returned an empty JSON response", 502, "AI_EMPTY_RESPONSE");
     }
 
+    logger.info({
+      ...diagnostics,
+      response: buildMetadata(response),
+      outputChars: content.length
+    }, "OpenAI JSON request completed");
+
     return {
       data: parseJsonOutput(content),
       metadata: buildMetadata(response)
     };
   } catch (error) {
+    logger.error({
+      ...diagnostics,
+      err: error,
+      providerError: buildProviderErrorDiagnostics(error)
+    }, "OpenAI JSON request failed");
+
     if (error instanceof SyntaxError) {
       throw new AppError("AI provider returned invalid JSON", 502, "AI_INVALID_JSON");
     }
@@ -178,12 +234,15 @@ export async function streamReply(messages, { signal, onDelta, onResponseStart, 
   let content = "";
   let responseMetadata;
   let tokenIndex = 0;
+  const request = buildRequest(messages, {
+    ...(aiOptions || {}),
+    stream: true
+  });
+  const diagnostics = buildRequestDiagnostics(request, messages);
 
   try {
-    const stream = await openai.responses.create(buildRequest(messages, {
-      ...(aiOptions || {}),
-      stream: true
-    }), {
+    logger.info(diagnostics, "OpenAI stream request started");
+    const stream = await openai.responses.create(request, {
       signal
     });
 
@@ -231,6 +290,13 @@ export async function streamReply(messages, { signal, onDelta, onResponseStart, 
       throw new AppError("AI provider returned an empty response", 502, "AI_EMPTY_RESPONSE");
     }
 
+    logger.info({
+      ...diagnostics,
+      response: responseMetadata,
+      outputChars: content.length,
+      tokensReceived: tokenIndex
+    }, "OpenAI stream request completed");
+
     return {
       content,
       metadata: responseMetadata || {
@@ -239,6 +305,15 @@ export async function streamReply(messages, { signal, onDelta, onResponseStart, 
       }
     };
   } catch (error) {
+    logger.error({
+      ...diagnostics,
+      err: error,
+      providerError: buildProviderErrorDiagnostics(error),
+      partialOutputChars: content.trim().length,
+      tokensReceived: tokenIndex,
+      response: responseMetadata
+    }, "OpenAI stream request failed");
+
     const aiError = toAiError(error);
     const partialContent = content.trim();
 

@@ -9,6 +9,7 @@ export function errorMiddleware(error, req, res, next) {
 
   const statusCode = error.statusCode || 500;
   const isServerError = statusCode >= 500;
+  const includeDevDiagnostics = env.NODE_ENV !== "production";
   const message = env.NODE_ENV === "production" && isServerError
     ? "Internal server error"
     : error.message;
@@ -36,7 +37,12 @@ export function errorMiddleware(error, req, res, next) {
     error: {
       code: error.code || "INTERNAL_ERROR",
       message,
-      ...(!isServerError && error.details ? { details: error.details } : {})
+      statusCode,
+      ...(error.details && (!isServerError || includeDevDiagnostics) ? { details: error.details } : {}),
+      ...(includeDevDiagnostics ? {
+        name: error.name,
+        stack: error.stack
+      } : {})
     }
   });
 }

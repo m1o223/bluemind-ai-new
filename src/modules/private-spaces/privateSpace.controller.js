@@ -149,12 +149,16 @@ function toStreamErrorPayload(error, streamId) {
   const message = env.NODE_ENV === "production" && isServerError
     ? "Internal server error"
     : error.message;
+  const includeDevDiagnostics = env.NODE_ENV !== "production";
 
   return {
     streamId,
+    statusCode,
+    name: includeDevDiagnostics ? error.name : undefined,
     code: error.code || "STREAM_ERROR",
     message: message || "Streaming failed",
-    details: error.details
+    details: error.details,
+    stack: includeDevDiagnostics ? error.stack : undefined
   };
 }
 
