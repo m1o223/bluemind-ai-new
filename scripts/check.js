@@ -32,4 +32,12 @@ for (const file of files.sort()) {
   }
 }
 
+const imageChatPipeline = spawnSync(process.execPath, ["scripts/verify-image-chat-pipeline.js"], {
+  stdio: "inherit",
+});
+
+if (imageChatPipeline.status !== 0) {
+  process.exit(imageChatPipeline.status || 1);
+}
+
 console.log(`Checked ${files.length} backend files.`);

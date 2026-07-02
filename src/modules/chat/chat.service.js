@@ -253,7 +253,7 @@ function buildAttachmentMetadata(images) {
   }));
 }
 
-function attachImagesToLatestUserMessage(messages, images, fallbackText) {
+export function attachImagesToLatestUserMessage(messages, images, fallbackText) {
   if (!images.length) {
     return messages;
   }
@@ -437,9 +437,9 @@ function supportsReasoningEffort(model) {
   return /(^o\d|gpt-5|reasoning)/i.test(String(model || ""));
 }
 
-function buildResponseModeOptions(metadata, mode) {
+export function buildResponseModeOptions(metadata, mode, { forceVision = false } = {}) {
   const config = AI_MODE_CONFIG[normalizeResponseMode(metadata, mode)];
-  const model = config.model();
+  const model = forceVision ? env.OPENAI_VISION_MODEL : config.model();
   const aiOptions = {
     model,
     temperature: config.temperature,
@@ -455,6 +455,7 @@ function buildResponseModeOptions(metadata, mode) {
   return {
     responseMode: config.id,
     aiMode: config.id,
+    visionEnabled: forceVision,
     aiOptions,
     instruction: config.instruction
   };
@@ -512,7 +513,7 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
-  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode, { forceVision: images.length > 0 });
   const aiResult = await generateReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), responseMode.aiOptions);
 
   await appendMessage(conversation, {
@@ -522,6 +523,7 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
       ...aiResult.metadata,
       responseMode: responseMode.responseMode,
       aiMode: responseMode.aiMode,
+      visionEnabled: responseMode.visionEnabled || undefined,
       memory: context.metadata
     }
   });
@@ -586,7 +588,7 @@ export async function createStreamingChatReply({
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
-  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode, { forceVision: images.length > 0 });
   const aiResult = await streamReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), {
     aiOptions: responseMode.aiOptions,
     signal,
@@ -601,6 +603,7 @@ export async function createStreamingChatReply({
       ...aiResult.metadata,
       responseMode: responseMode.responseMode,
       aiMode: responseMode.aiMode,
+      visionEnabled: responseMode.visionEnabled || undefined,
       memory: context.metadata
     }
   });
@@ -635,7 +638,7 @@ export async function createHiddenStreamingChatReply({
   const images = await resolveChatImages(userId, imageIds);
   const userMessageContent = buildUserMessageContent(message, images, metadata);
   const selectedAiMode = normalizeResponseMode(metadata, mode || user?.preferences?.aiMode);
-  const responseMode = buildResponseModeOptions(metadata, selectedAiMode);
+  const responseMode = buildResponseModeOptions(metadata, selectedAiMode, { forceVision: images.length > 0 });
   const baseMessages = [{
     role: "user",
     content: userMessageContent
@@ -661,6 +664,7 @@ export async function createHiddenStreamingChatReply({
         ...aiResult.metadata,
         responseMode: responseMode.responseMode,
         aiMode: responseMode.aiMode,
+        visionEnabled: responseMode.visionEnabled || undefined,
         hiddenChat: true,
         preferredLanguage: user?.preferences?.language
       },
