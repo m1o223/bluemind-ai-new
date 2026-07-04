@@ -37,11 +37,31 @@ export function getContextMessages(conversation) {
   }));
 }
 
+function getConversationWorkspace(conversation) {
+  const workspaceMessage = conversation.messages.find((message) =>
+    message.metadata?.chatSessionMode || message.metadata?.workspace
+  );
+  const rawWorkspace = String(
+    workspaceMessage?.metadata?.chatSessionMode ||
+    workspaceMessage?.metadata?.workspace ||
+    "normal"
+  ).trim().toLowerCase();
+
+  if (rawWorkspace === "writing") return "writing";
+  if (rawWorkspace === "hidden") return "hidden";
+  if (rawWorkspace === "private") return "private";
+  return "normal";
+}
+
 export function toConversationMeta(conversation) {
+  const workspace = getConversationWorkspace(conversation);
+
   return {
     conversationId: conversation._id.toString(),
     privateSpaceId: conversation.privateSpaceId?.toString(),
     title: conversation.title,
+    chatSessionMode: workspace,
+    workspace,
     messageCount: conversation.messages.length,
     summaryMessageCount: conversation.summaryMessageCount || 0,
     memoryType: "hybrid"
