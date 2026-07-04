@@ -10,6 +10,7 @@ import privateSpaceRoutes from "../modules/private-spaces/privateSpace.routes.js
 import reminderRoutes from "../modules/reminders/reminder.routes.js";
 import studyPlanRoutes from "../modules/study-plans/study-plan.routes.js";
 import supportRoutes from "../modules/support/support.routes.js";
+import writingProfileRoutes from "../modules/writing-profile/writingProfile.routes.js";
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use("/private-spaces", privateSpaceRoutes);
 router.use("/reminders", reminderRoutes);
 router.use("/study-plans", studyPlanRoutes);
 router.use("/support", supportRoutes);
+router.use("/writing-profile", writingProfileRoutes);
 
 export default router;

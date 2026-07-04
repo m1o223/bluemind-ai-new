@@ -3,6 +3,7 @@ import { analyzeImagesForMemory, resolveChatImages } from "../images/image.servi
 import { buildChatContext } from "../memory/context-builder.service.js";
 import { processConversationMemory } from "../memory/memory-intelligence.service.js";
 import { processLearningProfileUpdate } from "../learning-profile/learningProfile.service.js";
+import { buildWritingProfileContext, getWritingProfile } from "../writing-profile/writingProfile.service.js";
 import {
   findConversationById,
   findLatestConversation,
@@ -461,13 +462,14 @@ export function buildResponseModeOptions(metadata, mode, { forceVision = false }
   };
 }
 
-function applyChatModeInstruction(messages, metadata, responseModeName) {
+function applyChatModeInstruction(messages, metadata, responseModeName, extraInstructions = []) {
   const chatMode = metadata?.chatMode;
   const responseMode = buildResponseModeOptions(metadata, responseModeName);
   const instructions = [
     responseMode.instruction,
     CHAT_MODE_INSTRUCTIONS[chatMode],
-    metadata?.scheduleAssistant ? SCHEDULE_ASSISTANT_INSTRUCTION : ""
+    metadata?.scheduleAssistant ? SCHEDULE_ASSISTANT_INSTRUCTION : "",
+    ...extraInstructions
   ].filter(Boolean);
 
   if (!instructions.length) {
@@ -513,8 +515,11 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
+  const writingProfileContext = metadata?.chatSessionMode === "writing" || metadata?.workspace === "writing"
+    ? buildWritingProfileContext(await getWritingProfile(userId))
+    : "";
   const responseMode = buildResponseModeOptions(metadata, selectedAiMode, { forceVision: images.length > 0 });
-  const aiResult = await generateReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), responseMode.aiOptions);
+  const aiResult = await generateReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode, [writingProfileContext]), responseMode.aiOptions);
 
   await appendMessage(conversation, {
     role: "assistant",
@@ -588,8 +593,11 @@ export async function createStreamingChatReply({
     preferences: user?.preferences
   });
   const aiInput = attachImagesToLatestUserMessage(context.messages, images, userMessageContent);
+  const writingProfileContext = metadata?.chatSessionMode === "writing" || metadata?.workspace === "writing"
+    ? buildWritingProfileContext(await getWritingProfile(userId))
+    : "";
   const responseMode = buildResponseModeOptions(metadata, selectedAiMode, { forceVision: images.length > 0 });
-  const aiResult = await streamReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode), {
+  const aiResult = await streamReply(applyChatModeInstruction(aiInput, metadata, selectedAiMode, [writingProfileContext]), {
     aiOptions: responseMode.aiOptions,
     signal,
     onDelta,
