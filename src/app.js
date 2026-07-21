@@ -18,7 +18,10 @@ app.disable("x-powered-by");
 const productionCorsOrigins = [
   "https://bluemind-frontend.vercel.app",
   "https://bluemind-frontend-m1o223s-projects.vercel.app",
-  "https://bluemind-frontend-m1o223-m1o223s-projects.vercel.app"
+  "https://bluemind-frontend-m1o223-m1o223s-projects.vercel.app",
+  "https://localhost",
+  "http://localhost",
+  "capacitor://localhost"
 ];
 
 function isAllowedCorsOrigin(origin) {

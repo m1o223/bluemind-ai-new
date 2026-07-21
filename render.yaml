@@ -14,7 +14,7 @@ services:
       - key: API_PREFIX
         value: /api
       - key: CORS_ORIGIN
-        value: https://bluemind-frontend.vercel.app
+        value: https://bluemind-frontend.vercel.app,https://localhost,capacitor://localhost
       - key: FRONTEND_URL
         value: https://bluemind-frontend.vercel.app
       - key: BACKEND_PUBLIC_URL
