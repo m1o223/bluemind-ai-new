@@ -40,4 +40,12 @@ if (imageChatPipeline.status !== 0) {
   process.exit(imageChatPipeline.status || 1);
 }
 
+const reminderBefore = spawnSync(process.execPath, ["scripts/check-reminder-before.js"], {
+  stdio: "inherit",
+});
+
+if (reminderBefore.status !== 0) {
+  process.exit(reminderBefore.status || 1);
+}
+
 console.log(`Checked ${files.length} backend files.`);
