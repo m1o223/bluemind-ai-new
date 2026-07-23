@@ -68,6 +68,7 @@ function buildNotificationPayload({ reminder, user }) {
       priority: reminder.priority,
       reminderDate: reminder.reminderDate,
       reminderTime: reminder.reminderTime,
+      reminderBefore: String(reminder.reminderBefore || 0),
       timezone: reminder.timezone,
       click_action: deepLink,
       deepLink
@@ -83,6 +84,7 @@ function buildNotificationPayload({ reminder, user }) {
         requireInteraction: reminder.priority === "high" || reminder.priority === "urgent",
         data: {
           reminderId: reminder._id.toString(),
+          reminderBefore: String(reminder.reminderBefore || 0),
           deepLink
         }
       }
