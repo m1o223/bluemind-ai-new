@@ -19,8 +19,10 @@ import {
 } from "../memory/memory.service.js";
 import { findUserById } from "../users/user.service.js";
 import { getLanguageName, normalizePreferences } from "../preferences/preferences.service.js";
+import { queueSmartNotification } from "../notifications/smartNotification.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 
 function buildMessageResponse(message) {
   return {
@@ -40,6 +42,38 @@ function buildAiResponse(metadata) {
     status: metadata.status,
     usage: metadata.usage
   };
+}
+
+function isWritingMode(metadata = {}, selectedAiMode = "") {
+  return selectedAiMode === "writing"
+    || metadata?.chatSessionMode === "writing"
+    || metadata?.workspace === "writing"
+    || metadata?.mode === "write_edit"
+    || metadata?.responseMode === "write_edit";
+}
+
+async function queueChatCompletionNotification({ userId, conversation, assistantMessage, metadata, selectedAiMode }) {
+  try {
+    const writing = isWritingMode(metadata, selectedAiMode);
+    await queueSmartNotification({
+      userId,
+      type: writing ? "writing" : "chat",
+      sourceId: assistantMessage?._id?.toString() || conversation?._id?.toString(),
+      source: {
+        conversationTitle: conversation?.title,
+        documentTitle: metadata?.documentTitle || metadata?.title,
+        rewritten: writing,
+        deepLink: writing ? "/mobile/write-edit" : "/mobile/chat"
+      },
+      dedupeKey: `${writing ? "writing" : "chat"}:${assistantMessage?._id?.toString() || Date.now()}`
+    });
+  } catch (error) {
+    logger.warn({
+      err: error,
+      conversationId: conversation?._id?.toString(),
+      userId: userId?.toString()
+    }, "Chat completion notification queueing failed");
+  }
 }
 
 function buildChatResponse(conversation, message, aiMetadata, memoryMetadata, memoryProcessing) {
@@ -541,6 +575,13 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
   ]);
 
   await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
+  await queueChatCompletionNotification({
+    userId,
+    conversation,
+    assistantMessage,
+    metadata,
+    selectedAiMode
+  });
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
@@ -624,6 +665,13 @@ export async function createStreamingChatReply({
   ]);
 
   await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
+  await queueChatCompletionNotification({
+    userId,
+    conversation,
+    assistantMessage,
+    metadata,
+    selectedAiMode
+  });
 
   return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,

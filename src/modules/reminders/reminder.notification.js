@@ -22,6 +22,7 @@ import {
 import { sendFirebaseMulticast } from "./firebase.service.js";
 import { isWebPushConfigured, sendWebPushNotifications } from "./webPush.service.js";
 import { normalizePreferences } from "../preferences/preferences.service.js";
+import { buildSmartNotificationContent } from "../notifications/smartNotification.content.js";
 
 function toDeviceTokenResponse(deviceToken) {
   return {
@@ -43,17 +44,17 @@ function buildReminderDeepLink(reminder) {
 
 function buildNotificationPayload({ reminder, user }) {
   const deepLink = buildReminderDeepLink(reminder);
-  const preferences = normalizePreferences(user.preferences);
-  const language = preferences.language.split("-")[0];
-  const title = "BlueMind Reminder";
-  const bodyTemplates = {
-    ar: `مرحبًا ${user.name} 👋\nعندك تذكير الآن:\n${reminder.title}`,
-    sv: `Hej ${user.name} 👋\nDu har en påminnelse nu:\n${reminder.title}`,
-    fr: `Bonjour ${user.name} 👋\nVous avez un rappel maintenant :\n${reminder.title}`,
-    hi: `नमस्ते ${user.name} 👋\nआपके पास अभी एक रिमाइंडर है:\n${reminder.title}`,
-    en: `Hello ${user.name} 👋\nYou have a reminder now:\n${reminder.title}`
-  };
-  const body = bodyTemplates[language] || bodyTemplates.en;
+  const content = buildSmartNotificationContent("reminder", {
+    title: reminder.title,
+    reminderDate: reminder.reminderDate,
+    reminderTime: reminder.reminderTime,
+    reminderBefore: reminder.reminderBefore,
+    dueAt: reminder.dueAt,
+    timezone: reminder.timezone,
+    deepLink
+  });
+  const title = content.title;
+  const body = content.body;
 
   return {
     notification: {

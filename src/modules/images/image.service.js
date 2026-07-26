@@ -5,6 +5,7 @@ import { generateJson } from "../ai/ai.service.js";
 import { findConversationById, saveConversation } from "../memory/memory.repository.js";
 import { upsertUserMemory } from "../memory/memory.repository.js";
 import { getLanguageName, normalizePreferences } from "../preferences/preferences.service.js";
+import { queueSmartNotification } from "../notifications/smartNotification.service.js";
 import { buildImageGenerationPrompt, IMAGE_ANALYSIS_PROMPT } from "./image.prompt.js";
 import {
   assetToDataUrl,
@@ -393,6 +394,24 @@ export async function generateImage(userId, payload) {
         }
       });
       await saveConversation(conversation);
+    }
+  }
+
+  if (images.length) {
+    try {
+      await queueSmartNotification({
+        userId,
+        type: "studio",
+        sourceId: images[0].id,
+        source: {
+          prompt: payload.prompt,
+          imageCount: images.length,
+          deepLink: "/mobile/create-image"
+        },
+        dedupeKey: `studio:${images.map((image) => image.id).join(":")}`
+      });
+    } catch (error) {
+      // Image generation should not fail because notification queueing failed.
     }
   }
 

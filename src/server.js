@@ -7,6 +7,7 @@ import {
   startDatabaseReconnectLoop
 } from "./config/database.js";
 import { logger } from "./config/logger.js";
+import { startSmartNotificationScheduler, stopSmartNotificationScheduler } from "./modules/notifications/smartNotification.scheduler.js";
 import { startReminderScheduler, stopReminderScheduler } from "./modules/reminders/reminder.scheduler.js";
 
 let server;
@@ -37,6 +38,7 @@ function bootstrap() {
   });
 
   startReminderScheduler();
+  startSmartNotificationScheduler();
 }
 
 async function shutdown(signal) {
@@ -47,6 +49,7 @@ async function shutdown(signal) {
   }
 
   stopReminderScheduler();
+  stopSmartNotificationScheduler();
   await disconnectDatabase();
   process.exit(0);
 }

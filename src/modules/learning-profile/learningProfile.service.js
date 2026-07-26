@@ -1,5 +1,6 @@
 import { logger } from "../../config/logger.js";
 import { generateJson } from "../ai/ai.service.js";
+import { queueSmartNotification } from "../notifications/smartNotification.service.js";
 import { LearningProfile } from "./learningProfile.model.js";
 import { LEARNING_PROFILE_CONTEXT_RULES, LEARNING_PROFILE_EXTRACTION_PROMPT } from "./learningProfile.prompt.js";
 
@@ -329,6 +330,26 @@ export async function processLearningProfileUpdate({ user, conversation, latestU
 
     profile.updateCount += 1;
     await profile.save();
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      await queueSmartNotification({
+        userId: user._id,
+        type: "learning",
+        sourceId: profile._id.toString(),
+        source: {
+          subject,
+          concept,
+          deepLink: "/mobile/learning"
+        },
+        dedupeKey: `learning:${user._id}:${today}:${subject || "general"}:${concept || "lesson"}`
+      });
+    } catch (notificationError) {
+      logger.warn({
+        err: notificationError,
+        userId: user._id.toString()
+      }, "Learning notification queueing failed");
+    }
 
     return {
       updated: true,
