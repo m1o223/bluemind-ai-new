@@ -84,6 +84,10 @@ function clearPasswordReset(user) {
   user.passwordResetExpiresAt = undefined;
   user.passwordResetAttempts = 0;
   user.passwordResetLastSentAt = undefined;
+  user.passwordResetResendAttempts = 0;
+  user.passwordResetResendCooldownUntil = undefined;
+  user.passwordResetSessionHash = "";
+  user.passwordResetSessionExpiresAt = undefined;
 }
 
 function clearPendingEmail(user) {
@@ -105,6 +109,49 @@ function emailVerificationMeta(user) {
         : undefined
     )
   };
+}
+
+function passwordResetMeta(user) {
+  const resendRetryAt = user?.passwordResetLastSentAt
+    ? new Date(user.passwordResetLastSentAt.getTime() + env.AUTH_CODE_RESEND_COOLDOWN_SECONDS * 1000)
+    : undefined;
+  const cooldownUntil = user?.passwordResetResendCooldownUntil;
+
+  return {
+    email: user?.email,
+    expiresAt: user?.passwordResetExpiresAt,
+    resendAvailableInSeconds: Math.max(secondsUntil(resendRetryAt), secondsUntil(cooldownUntil)),
+    resendAttempts: user?.passwordResetResendAttempts || 0,
+    maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS,
+    lockedUntil: cooldownUntil,
+    lockedForSeconds: secondsUntil(cooldownUntil)
+  };
+}
+
+function genericPasswordResetMeta() {
+  return {
+    resendAvailableInSeconds: env.AUTH_CODE_RESEND_COOLDOWN_SECONDS,
+    resendAttempts: 0,
+    maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS
+  };
+}
+
+function passwordResetLockUntil() {
+  return minutesFromNow(env.PASSWORD_RESET_RESEND_LOCK_MINUTES);
+}
+
+function assertPasswordResetResendAllowed(user) {
+  if (user.passwordResetResendCooldownUntil && user.passwordResetResendCooldownUntil > now()) {
+    throw new AppError("Too many attempts. Please try again in one hour.", 429, "PASSWORD_RESET_RESEND_LOCKED", {
+      retryAfterSeconds: secondsUntil(user.passwordResetResendCooldownUntil),
+      maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS
+    });
+  }
+
+  if (user.passwordResetResendCooldownUntil && user.passwordResetResendCooldownUntil <= now()) {
+    user.passwordResetResendCooldownUntil = undefined;
+    user.passwordResetResendAttempts = 0;
+  }
 }
 
 async function saveIdentityMemory(user) {
@@ -293,10 +340,30 @@ export async function requestPasswordReset({ email }) {
   const user = await findUserByEmail(email);
 
   if (!user || !user.passwordHash) {
-    return { sent: true };
+    return {
+      sent: true,
+      reset: genericPasswordResetMeta()
+    };
   }
 
+  assertPasswordResetResendAllowed(user);
   assertCooldown(user.passwordResetLastSentAt, "password_reset");
+
+  const hasActiveReset = Boolean(
+    user.passwordResetCodeHash &&
+    user.passwordResetExpiresAt &&
+    user.passwordResetExpiresAt > now()
+  );
+  const resendAttempts = hasActiveReset ? (user.passwordResetResendAttempts || 0) + 1 : 0;
+
+  if (resendAttempts > env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS) {
+    user.passwordResetResendCooldownUntil = passwordResetLockUntil();
+    await user.save();
+    throw new AppError("Too many attempts. Please try again in one hour.", 429, "PASSWORD_RESET_RESEND_LOCKED", {
+      retryAfterSeconds: secondsUntil(user.passwordResetResendCooldownUntil),
+      maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS
+    });
+  }
 
   const code = generateCode();
 
@@ -304,6 +371,16 @@ export async function requestPasswordReset({ email }) {
   user.passwordResetExpiresAt = minutesFromNow(env.PASSWORD_RESET_CODE_TTL_MINUTES);
   user.passwordResetAttempts = 0;
   user.passwordResetLastSentAt = undefined;
+  user.passwordResetResendAttempts = resendAttempts;
+  user.passwordResetSessionHash = "";
+  user.passwordResetSessionExpiresAt = undefined;
+
+  if (resendAttempts >= env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS) {
+    user.passwordResetResendCooldownUntil = passwordResetLockUntil();
+  } else {
+    user.passwordResetResendCooldownUntil = undefined;
+  }
+
   await user.save();
 
   let delivery;
@@ -327,11 +404,12 @@ export async function requestPasswordReset({ email }) {
 
   return {
     sent: true,
-    expiresAt: user.passwordResetExpiresAt
+    expiresAt: user.passwordResetExpiresAt,
+    reset: passwordResetMeta(user)
   };
 }
 
-export async function resetPassword({ email, code, password }) {
+export async function verifyPasswordResetCode({ email, code }) {
   const user = await findUserByEmail(email);
 
   if (!user || !user.passwordHash) {
@@ -352,6 +430,66 @@ export async function resetPassword({ email, code, password }) {
     throw new AppError("Invalid or expired reset code", 400, "PASSWORD_RESET_INVALID", {
       attemptsRemaining: Math.max(0, env.AUTH_CODE_MAX_ATTEMPTS - user.passwordResetAttempts)
     });
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("base64url");
+  const sessionExpiresAt = new Date(Math.min(
+    user.passwordResetExpiresAt.getTime(),
+    minutesFromNow(env.PASSWORD_RESET_SESSION_TTL_MINUTES).getTime()
+  ));
+
+  user.passwordResetSessionHash = hashToken(resetToken);
+  user.passwordResetSessionExpiresAt = sessionExpiresAt;
+  user.passwordResetCodeHash = "";
+  user.passwordResetAttempts = 0;
+  await user.save();
+
+  return {
+    verified: true,
+    resetToken,
+    expiresAt: sessionExpiresAt
+  };
+}
+
+function verifyPasswordResetSessionOrThrow(user, resetToken) {
+  if (!user.passwordResetSessionHash || !user.passwordResetSessionExpiresAt) {
+    throw new AppError("Invalid or expired reset session", 400, "PASSWORD_RESET_INVALID");
+  }
+
+  if (user.passwordResetSessionExpiresAt <= now()) {
+    throw new AppError("Invalid or expired reset session", 400, "PASSWORD_RESET_INVALID");
+  }
+
+  if (user.passwordResetSessionHash !== hashToken(String(resetToken).trim())) {
+    throw new AppError("Invalid or expired reset session", 400, "PASSWORD_RESET_INVALID");
+  }
+}
+
+export async function resetPassword({ email, code, resetToken, password }) {
+  const user = await findUserByEmail(email);
+
+  if (!user || !user.passwordHash) {
+    throw new AppError("Invalid or expired reset code", 400, "PASSWORD_RESET_INVALID");
+  }
+
+  if (resetToken) {
+    verifyPasswordResetSessionOrThrow(user, resetToken);
+  } else {
+    const valid = verifyCodeOrThrow({
+      user,
+      code,
+      hashField: "passwordResetCodeHash",
+      expiresField: "passwordResetExpiresAt",
+      attemptsField: "passwordResetAttempts",
+      action: "password_reset"
+    });
+
+    if (!valid) {
+      await user.save();
+      throw new AppError("Invalid or expired reset code", 400, "PASSWORD_RESET_INVALID", {
+        attemptsRemaining: Math.max(0, env.AUTH_CODE_MAX_ATTEMPTS - user.passwordResetAttempts)
+      });
+    }
   }
 
   user.passwordHash = await hashPassword(password);

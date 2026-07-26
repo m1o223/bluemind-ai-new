@@ -54,11 +54,24 @@ export const resendVerificationSchema = z.object({
 
 export const forgotPasswordSchema = resendVerificationSchema;
 
+export const verifyPasswordResetSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+    code: codeSchema
+  }),
+  params: z.object({}),
+  query: z.object({})
+});
+
 export const resetPasswordSchema = z.object({
   body: z.object({
     email: emailSchema,
-    code: codeSchema,
+    code: codeSchema.optional(),
+    resetToken: z.string().trim().min(32).max(256).optional(),
     password: strongPasswordSchema
+  }).refine((body) => body.code || body.resetToken, {
+    path: ["resetToken"],
+    message: "Reset verification is required"
   }),
   params: z.object({}),
   query: z.object({})

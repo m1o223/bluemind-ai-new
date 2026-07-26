@@ -19,6 +19,7 @@ import {
   updatePassword,
   updateProfile,
   verifyEmailCode,
+  verifyPasswordReset,
   updatePreferences
 } from "./auth.controller.js";
 import {
@@ -35,6 +36,7 @@ import {
   registerSchema,
   resendVerificationSchema,
   resetPasswordSchema,
+  verifyPasswordResetSchema,
   verifyEmailSchema
 } from "./auth.validation.js";
 
@@ -69,7 +71,8 @@ router.post("/guest", authAttemptLimiter, guest);
 router.post("/verify-email", authCodeLimiter, validate(verifyEmailSchema), verifyEmailCode);
 router.post("/resend-verification", authCodeLimiter, validate(resendVerificationSchema), resendVerification);
 router.post("/forgot-password", authCodeLimiter, validate(forgotPasswordSchema), forgotPassword);
-router.post("/reset-password", authCodeLimiter, validate(resetPasswordSchema), resetPasswordWithCode);
+router.post("/verify-reset-code", authAttemptLimiter, validate(verifyPasswordResetSchema), verifyPasswordReset);
+router.post("/reset-password", authAttemptLimiter, validate(resetPasswordSchema), resetPasswordWithCode);
 router.post("/refresh", validate(refreshSchema), refresh);
 router.post("/logout", validate(logoutSchema), logout);
 router.get("/me", requireAuth, getMe);

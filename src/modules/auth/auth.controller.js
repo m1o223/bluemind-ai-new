@@ -13,6 +13,7 @@ import {
   requestPasswordReset,
   resendEmailVerification,
   resetPassword,
+  verifyPasswordResetCode,
   verifyEmail,
   loginGuest,
   loginUser,
@@ -95,6 +96,17 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     email: req.validated.body.email,
     sent: result.sent
   }, "Password reset request processed");
+
+  sendResponse(res, 200, result);
+});
+
+export const verifyPasswordReset = asyncHandler(async (req, res) => {
+  const result = await verifyPasswordResetCode(req.validated.body);
+
+  req.log.info({
+    authFlow: "verify_password_reset",
+    email: req.validated.body.email
+  }, "Password reset code verified");
 
   sendResponse(res, 200, result);
 });

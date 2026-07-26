@@ -76,6 +76,21 @@ const userSchema = new mongoose.Schema({
   passwordResetLastSentAt: {
     type: Date
   },
+  passwordResetResendAttempts: {
+    type: Number,
+    default: 0
+  },
+  passwordResetResendCooldownUntil: {
+    type: Date
+  },
+  passwordResetSessionHash: {
+    type: String,
+    trim: true,
+    default: ""
+  },
+  passwordResetSessionExpiresAt: {
+    type: Date
+  },
   pendingEmail: {
     type: String,
     trim: true,

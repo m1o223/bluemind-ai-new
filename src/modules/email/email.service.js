@@ -519,7 +519,7 @@ export function sendPasswordResetEmail({ to, name, code }) {
   const subject = "Reset your BlueMind AI password";
   const intro = `Hi ${name || "there"}, use this secure code to reset your BlueMind AI password.`;
   const outro = "This code expires soon. If you did not request a password reset, you can safely ignore this email.";
-  const actionUrl = publicFrontendUrl(`/auth/reset-password?email=${encodeURIComponent(to)}`);
+  const actionUrl = publicFrontendUrl(`/auth/verify-reset-code?email=${encodeURIComponent(to)}`);
 
   return sendEmail({
     to,
