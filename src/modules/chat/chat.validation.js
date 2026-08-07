@@ -80,3 +80,24 @@ export const renameConversationSchema = z.object({
   }),
   query: z.object({})
 });
+
+export const branchConversationSchema = z.object({
+  body: z.object({
+    messageId: objectIdSchema
+  }).strict(),
+  params: z.object({
+    conversationId: objectIdSchema
+  }),
+  query: z.object({})
+});
+
+export const messageActionSchema = z.object({
+  body: z.object({
+    option: z.enum(["retry", "clearer", "shorter", "more_detailed", "simpler"]).optional()
+  }).strict(),
+  params: z.object({
+    conversationId: objectIdSchema,
+    messageId: objectIdSchema
+  }),
+  query: z.object({})
+});

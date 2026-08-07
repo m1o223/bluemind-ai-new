@@ -7,11 +7,13 @@ import { setupSse, writeSse, writeSseComment } from "../../utils/sse.js";
 import {
   createChatReply,
   createHiddenStreamingChatReply,
+  branchChatConversation,
   createStreamingChatReply,
   deleteChatConversation,
   getChatConversation,
   getLatestChatConversation,
   listChatConversations,
+  regenerateChatMessage,
   renameChatConversation,
   searchChatConversations
 } from "./chat.service.js";
@@ -95,6 +97,16 @@ export const deleteConversation = asyncHandler(async (req, res) => {
   );
 
   sendResponse(res, 200, result, "Conversation deleted");
+});
+
+export const branchConversation = asyncHandler(async (req, res) => {
+  const result = await branchChatConversation({
+    userId: req.user._id,
+    conversationId: req.validated.params.conversationId,
+    messageId: req.validated.body.messageId
+  });
+
+  sendResponse(res, 201, result, "Conversation branched");
 });
 
 function toStreamErrorPayload(error, streamId) {
@@ -301,6 +313,95 @@ export async function streamHiddenChatMessage(req, res, next) {
     }
 
     req.log.error({ streamId, err: error, durationMs: Date.now() - startedAt }, "Hidden chat stream failed");
+    await writeSse(res, "error", toStreamErrorPayload(error, streamId));
+    await writeSse(res, "done", { streamId });
+    res.end();
+  } finally {
+    clearInterval(heartbeat);
+    req.off("close", abortOnClose);
+  }
+}
+
+export async function streamRegenerateMessage(req, res, next) {
+  const streamId = randomUUID();
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+  let clientClosed = false;
+  let heartbeat;
+
+  function abortOnClose() {
+    if (!res.writableEnded) {
+      clientClosed = true;
+      abortController.abort();
+      req.log.info({ streamId }, "Message action stream client disconnected");
+    }
+  }
+
+  req.on("close", abortOnClose);
+
+  try {
+    setupSse(res);
+    await writeSseComment(res, "BlueMind AI message action stream");
+    await writeSse(res, "connected", { streamId, mode: "sse" });
+
+    heartbeat = setInterval(() => {
+      void writeSse(res, "heartbeat", {
+        streamId,
+        timestamp: new Date().toISOString()
+      });
+    }, 15000);
+    heartbeat.unref?.();
+
+    const result = await regenerateChatMessage({
+      userId: req.user._id,
+      conversationId: req.validated.params.conversationId,
+      messageId: req.validated.params.messageId,
+      option: req.validated.body.option || "retry",
+      signal: abortController.signal,
+      onStart: async (conversation) => {
+        const written = await writeSse(res, "ready", { streamId, conversation });
+        if (!written) abortController.abort();
+      },
+      onResponseStart: async (ai) => {
+        const written = await writeSse(res, "ai_start", { streamId, ai });
+        if (!written) abortController.abort();
+      },
+      onDelta: async ({ token, index, sequenceNumber }) => {
+        const written = await writeSse(res, "delta", {
+          streamId,
+          token,
+          index,
+          sequenceNumber
+        }, {
+          id: `${streamId}:${index}`
+        });
+
+        if (!written) abortController.abort();
+      }
+    });
+
+    await writeSse(res, "complete", { streamId, ...result });
+    await writeSse(res, "done", { streamId });
+    res.end();
+
+    req.log.info({
+      streamId,
+      conversationId: result.conversation.conversationId,
+      responseId: result.ai.responseId,
+      durationMs: Date.now() - startedAt
+    }, "Message action stream completed");
+  } catch (error) {
+    if (clientClosed || error.code === "AI_STREAM_ABORTED") {
+      req.log.info({ streamId, durationMs: Date.now() - startedAt }, "Message action stream aborted");
+      return;
+    }
+
+    if (!res.headersSent) {
+      next(error);
+      return;
+    }
+
+    req.log.error({ streamId, err: error, durationMs: Date.now() - startedAt }, "Message action stream failed");
     await writeSse(res, "error", toStreamErrorPayload(error, streamId));
     await writeSse(res, "done", { streamId });
     res.end();

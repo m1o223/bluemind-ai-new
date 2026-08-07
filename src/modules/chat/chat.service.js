@@ -5,6 +5,7 @@ import { processConversationMemory } from "../memory/memory-intelligence.service
 import { processLearningProfileUpdate } from "../learning-profile/learningProfile.service.js";
 import { buildWritingProfileContext, getWritingProfile } from "../writing-profile/writingProfile.service.js";
 import {
+  createConversation,
   findConversationById,
   findLatestConversation,
   listUserConversations,
@@ -102,6 +103,46 @@ function buildConversationResponse(conversation) {
       .filter((message) => !message.metadata?.hiddenFromChat)
       .map(buildMessageResponse)
   };
+}
+
+function cloneMessageForBranch(message) {
+  return {
+    role: message.role,
+    content: message.content,
+    metadata: {
+      ...(message.metadata || {}),
+      branchedFromMessageId: message._id?.toString()
+    },
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt
+  };
+}
+
+function findAssistantMessageIndex(conversation, messageId) {
+  return conversation.messages.findIndex((message) =>
+    message._id?.toString() === String(messageId) && message.role === "assistant"
+  );
+}
+
+function findPreviousUserMessage(messages, assistantIndex) {
+  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") {
+      return messages[index];
+    }
+  }
+
+  return null;
+}
+
+function buildImproveInstruction(option) {
+  const labels = {
+    clearer: "Rewrite the selected answer to be clearer, better organized, and easier to follow.",
+    shorter: "Rewrite the selected answer to be shorter while preserving the most important information.",
+    more_detailed: "Rewrite the selected answer with more useful detail, examples, and practical context.",
+    simpler: "Rewrite the selected answer in simpler language with a gentler step-by-step explanation."
+  };
+
+  return labels[option] || labels.clearer;
 }
 
 function shouldGenerateTitle(conversation) {
@@ -677,6 +718,136 @@ export async function createStreamingChatReply({
     ...memoryProcessing,
     imageMemories: imageMemory.length,
     learningProfile
+  });
+}
+
+export async function branchChatConversation({ userId, conversationId, messageId }) {
+  const conversation = await findConversationById(conversationId, userId);
+
+  if (!conversation) {
+    throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
+  }
+
+  const assistantIndex = findAssistantMessageIndex(conversation, messageId);
+  if (assistantIndex === -1) {
+    throw new AppError("AI message was not found", 404, "MESSAGE_NOT_FOUND");
+  }
+
+  const branch = await createConversation(userId, {
+    privateSpaceId: conversation.privateSpaceId
+  });
+  branch.title = `${conversation.title || "New conversation"} (Branch)`.slice(0, 120);
+  branch.summary = conversation.summary || "";
+  branch.summaryMessageCount = Math.min(conversation.summaryMessageCount || 0, assistantIndex + 1);
+  branch.summaryUpdatedAt = conversation.summaryUpdatedAt;
+  branch.messages = conversation.messages.slice(0, assistantIndex + 1).map(cloneMessageForBranch);
+  await saveConversation(branch);
+
+  return {
+    conversation: buildConversationResponse(branch)
+  };
+}
+
+export async function regenerateChatMessage({
+  userId,
+  conversationId,
+  messageId,
+  option = "retry",
+  signal,
+  onStart,
+  onDelta,
+  onResponseStart
+}) {
+  const conversation = await findConversationById(conversationId, userId);
+
+  if (!conversation) {
+    throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
+  }
+
+  const assistantIndex = findAssistantMessageIndex(conversation, messageId);
+  if (assistantIndex === -1) {
+    throw new AppError("AI message was not found", 404, "MESSAGE_NOT_FOUND");
+  }
+
+  const targetMessage = conversation.messages[assistantIndex];
+  const previousUser = findPreviousUserMessage(conversation.messages, assistantIndex);
+  if (!previousUser) {
+    throw new AppError("Could not find the user message for this response", 400, "SOURCE_MESSAGE_NOT_FOUND");
+  }
+
+  const user = await findUserById(userId);
+  const selectedAiMode = normalizeResponseMode(targetMessage.metadata || previousUser.metadata, targetMessage.metadata?.aiMode || previousUser.metadata?.aiMode || user?.preferences?.aiMode);
+  const actionMetadata = {
+    ...(targetMessage.metadata || {}),
+    chatAction: option === "retry" ? "retry" : "improve_answer",
+    improvementOption: option !== "retry" ? option : undefined
+  };
+  const contextConversation = {
+    ...conversation.toObject(),
+    messages: conversation.messages.slice(0, assistantIndex),
+    summary: conversation.summary,
+    summaryMessageCount: conversation.summaryMessageCount || 0
+  };
+
+  await onStart?.(toConversationMeta(conversation));
+
+  const context = await buildChatContext({
+    userId,
+    user,
+    conversation: contextConversation,
+    latestMessage: previousUser.content,
+    preferences: user?.preferences
+  });
+  const responseMode = buildResponseModeOptions(actionMetadata, selectedAiMode);
+  const writingProfileContext = actionMetadata.chatSessionMode === "writing" || actionMetadata.workspace === "writing"
+    ? buildWritingProfileContext(await getWritingProfile(userId))
+    : "";
+  const improvementInstruction = option === "retry" ? "" : [
+    buildImproveInstruction(option),
+    "",
+    "Use the selected answer below as the source material.",
+    "Do not mention that you are replacing a previous answer.",
+    "",
+    `Selected answer:\n${targetMessage.content}`
+  ].join("\n");
+  const aiResult = await streamReply(applyChatModeInstruction(
+    context.messages,
+    actionMetadata,
+    selectedAiMode,
+    [writingProfileContext, improvementInstruction].filter(Boolean)
+  ), {
+    aiOptions: responseMode.aiOptions,
+    signal,
+    onDelta,
+    onResponseStart
+  });
+
+  const previousContent = targetMessage.content;
+  targetMessage.content = aiResult.content;
+  targetMessage.metadata = {
+    ...(targetMessage.metadata || {}),
+    ...aiResult.metadata,
+    responseMode: responseMode.responseMode,
+    aiMode: responseMode.aiMode,
+    regeneratedAt: new Date(),
+    action: option === "retry" ? "retry" : "improve_answer",
+    improvementOption: option !== "retry" ? option : undefined,
+    previousContent,
+    memory: context.metadata
+  };
+  await saveConversation(conversation);
+
+  await queueChatCompletionNotification({
+    userId,
+    conversation,
+    assistantMessage: targetMessage,
+    metadata: actionMetadata,
+    selectedAiMode
+  });
+
+  return buildChatResponse(conversation, targetMessage, aiResult.metadata, context.metadata, {
+    skipped: true,
+    reason: option === "retry" ? "message_retry" : "message_improvement"
   });
 }
 

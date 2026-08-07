@@ -7,6 +7,7 @@ import {
   getConversation,
   getLatestConversation,
   listConversations,
+  branchConversation,
   searchConversations,
   deleteConversation,
   renameConversation,
@@ -14,9 +15,17 @@ import {
   createVoiceSpeech,
   transcribeVoiceMessage,
   streamHiddenChatMessage,
-  streamChatMessage
+  streamChatMessage,
+  streamRegenerateMessage
 } from "./chat.controller.js";
-import { chatConversationParamsSchema, chatMessageSchema, renameConversationSchema, searchConversationsSchema } from "./chat.validation.js";
+import {
+  branchConversationSchema,
+  chatConversationParamsSchema,
+  chatMessageSchema,
+  messageActionSchema,
+  renameConversationSchema,
+  searchConversationsSchema
+} from "./chat.validation.js";
 
 const router = Router();
 
@@ -49,6 +58,18 @@ router.get(
   requireAuth,
   validate(chatConversationParamsSchema),
   getConversation
+);
+router.post(
+  "/conversations/:conversationId/branch",
+  requireAuth,
+  validate(branchConversationSchema),
+  branchConversation
+);
+router.post(
+  "/conversations/:conversationId/messages/:messageId/regenerate/stream",
+  requireAuth,
+  validate(messageActionSchema),
+  streamRegenerateMessage
 );
 router.patch(
   "/conversations/:conversationId",
