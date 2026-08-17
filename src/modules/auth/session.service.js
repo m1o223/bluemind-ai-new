@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { env } from "../../config/env.js";
 import { AppError } from "../../utils/AppError.js";
 import { findUserById } from "../users/user.service.js";
+import { processDueAccountDeletions } from "./accountDeletion.service.js";
 import { AuthSession } from "./session.model.js";
 import {
   createTokenId,
@@ -74,6 +75,8 @@ export async function refreshAuthSession(refreshToken, req) {
   if (!refreshToken) {
     throw new AppError("Refresh token is required", 401, "AUTH_REFRESH_REQUIRED");
   }
+
+  await processDueAccountDeletions();
 
   const payload = verifyRefreshToken(refreshToken);
   const session = await AuthSession.findById(payload.sid);

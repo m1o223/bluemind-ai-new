@@ -10,6 +10,7 @@ import {
 import { upsertUserMemory } from "../memory/memory.repository.js";
 import { updateUserPreferences as updatePreferencesForUser } from "../preferences/preferences.service.js";
 import { createUser, findUserByEmail, normalizeEmail, updateLastLogin } from "../users/user.service.js";
+import { processDueAccountDeletions } from "./accountDeletion.service.js";
 import { comparePassword, hashPassword } from "./password.service.js";
 import { createAuthSession, refreshAuthSession, revokeAuthSession, revokeUserSessions } from "./session.service.js";
 import { hashToken } from "./token.service.js";
@@ -248,6 +249,8 @@ export async function registerUser({ name, email, password }) {
 }
 
 export async function loginUser({ email, password }, req) {
+  await processDueAccountDeletions();
+
   const user = await findUserByEmail(email);
 
   if (!user || !user.passwordHash) {

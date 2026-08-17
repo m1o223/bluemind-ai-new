@@ -118,6 +118,19 @@ const userSchema = new mongoose.Schema({
   lastLoginAt: {
     type: Date
   },
+  deletionStatus: {
+    type: String,
+    enum: ["normal", "pending", "deleting"],
+    default: "normal",
+    index: true
+  },
+  deletionRequestedAt: {
+    type: Date
+  },
+  deleteAt: {
+    type: Date,
+    index: true
+  },
   preferences: {
     appLanguage: {
       type: String,
@@ -185,7 +198,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
   const appColor = preferences.appColor || preferences.accentColor || "#193B68";
   const appLanguage = preferences.appLanguage || preferences.language || "en";
 
-  return {
+  const safe = {
     id: this._id.toString(),
     name: this.name,
     email: this.email,
@@ -212,6 +225,16 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
   };
+
+  if (this.deletionStatus === "pending" && this.deleteAt) {
+    safe.accountDeletion = {
+      status: "pending",
+      deletionRequestedAt: this.deletionRequestedAt,
+      deleteAt: this.deleteAt
+    };
+  }
+
+  return safe;
 };
 
 export const User = mongoose.model("User", userSchema);

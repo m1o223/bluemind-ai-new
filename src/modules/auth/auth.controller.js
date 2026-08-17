@@ -23,6 +23,11 @@ import {
   updateUserPreferences
 } from "./auth.service.js";
 import {
+  cancelAccountDeletion,
+  getAccountDeletionStatus,
+  requestAccountDeletion
+} from "./accountDeletion.service.js";
+import {
   loginWithFirebaseGoogleToken,
 } from "./google.service.js";
 import { env } from "../../config/env.js";
@@ -268,6 +273,36 @@ export const updatePassword = asyncHandler(async (req, res) => {
     authFlow: "change_password",
     userId: req.user._id.toString()
   }, "Password changed");
+
+  sendResponse(res, 200, result);
+});
+
+export const getDeleteStatus = asyncHandler(async (req, res) => {
+  const result = await getAccountDeletionStatus(req.user);
+  sendResponse(res, 200, result);
+});
+
+export const requestDeleteAccount = asyncHandler(async (req, res) => {
+  const result = await requestAccountDeletion(req.user, req.validated.body);
+
+  req.log.info({
+    authFlow: "delete_account_request",
+    userId: req.user._id.toString(),
+    status: result.status,
+    deleteAt: result.deleteAt
+  }, "Account deletion requested");
+
+  sendResponse(res, 200, result);
+});
+
+export const cancelDeleteAccount = asyncHandler(async (req, res) => {
+  const result = await cancelAccountDeletion(req.user);
+
+  req.log.info({
+    authFlow: "delete_account_cancel",
+    userId: req.user._id.toString(),
+    status: result.status
+  }, "Account deletion cancelled");
 
   sendResponse(res, 200, result);
 });

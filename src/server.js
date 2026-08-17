@@ -7,6 +7,7 @@ import {
   startDatabaseReconnectLoop
 } from "./config/database.js";
 import { logger } from "./config/logger.js";
+import { startAccountDeletionScheduler, stopAccountDeletionScheduler } from "./modules/auth/accountDeletion.scheduler.js";
 import { startSmartNotificationScheduler, stopSmartNotificationScheduler } from "./modules/notifications/smartNotification.scheduler.js";
 import { startReminderScheduler, stopReminderScheduler } from "./modules/reminders/reminder.scheduler.js";
 
@@ -39,6 +40,7 @@ function bootstrap() {
 
   startReminderScheduler();
   startSmartNotificationScheduler();
+  startAccountDeletionScheduler();
 }
 
 async function shutdown(signal) {
@@ -50,6 +52,7 @@ async function shutdown(signal) {
 
   stopReminderScheduler();
   stopSmartNotificationScheduler();
+  stopAccountDeletionScheduler();
   await disconnectDatabase();
   process.exit(0);
 }

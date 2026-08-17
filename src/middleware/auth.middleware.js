@@ -1,5 +1,6 @@
 import { verifyAccessToken } from "../modules/auth/token.service.js";
 import { findActiveSession } from "../modules/auth/session.service.js";
+import { processDueAccountDeletions } from "../modules/auth/accountDeletion.service.js";
 import { findUserById } from "../modules/users/user.service.js";
 import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -18,6 +19,8 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
   }
 
   const payload = verifyAccessToken(token);
+
+  await processDueAccountDeletions();
 
   if (!payload.sid) {
     req.log?.warn({

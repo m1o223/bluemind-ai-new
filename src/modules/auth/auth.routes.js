@@ -5,13 +5,16 @@ import { requireAuth } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
 import {
   confirmChangeEmail,
+  cancelDeleteAccount,
   firebaseGoogleLogin,
   forgotPassword,
+  getDeleteStatus,
   getMe,
   guest,
   login,
   logout,
   requestChangeEmail,
+  requestDeleteAccount,
   refresh,
   register,
   resendVerification,
@@ -26,6 +29,7 @@ import {
   changeEmailConfirmSchema,
   changeEmailRequestSchema,
   changePasswordSchema,
+  deleteAccountRequestSchema,
   forgotPasswordSchema,
   firebaseGoogleLoginSchema,
   loginSchema,
@@ -81,5 +85,8 @@ router.patch("/preferences", requireAuth, validate(preferencesSchema), updatePre
 router.post("/change-email/request", requireAuth, authCodeLimiter, validate(changeEmailRequestSchema), requestChangeEmail);
 router.post("/change-email/confirm", requireAuth, authCodeLimiter, validate(changeEmailConfirmSchema), confirmChangeEmail);
 router.post("/change-password", requireAuth, authAttemptLimiter, validate(changePasswordSchema), updatePassword);
+router.get("/delete-status", requireAuth, getDeleteStatus);
+router.post("/delete-request", requireAuth, authAttemptLimiter, validate(deleteAccountRequestSchema), requestDeleteAccount);
+router.post("/delete-cancel", requireAuth, cancelDeleteAccount);
 
 export default router;

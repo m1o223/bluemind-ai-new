@@ -107,6 +107,14 @@ export const changePasswordSchema = z.object({
   query: z.object({})
 });
 
+export const deleteAccountRequestSchema = z.object({
+  body: z.object({
+    password: z.string().min(1).max(128)
+  }),
+  params: z.object({}),
+  query: z.object({})
+});
+
 export const refreshSchema = z.object({
   body: z.object({
     refreshToken: z.string().trim().min(1).optional()
