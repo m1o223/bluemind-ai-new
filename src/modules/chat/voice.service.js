@@ -16,8 +16,24 @@ const SUPPORTED_AUDIO_TYPES = new Set([
   "audio/ogg;codecs=opus",
 ]);
 
-function getAudioExtension(contentType = "") {
-  if (contentType.includes("mp4")) return "mp4";
+function isM4AAudioContainer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return false;
+
+  const boxType = buffer.subarray(4, 8).toString("ascii");
+  if (boxType !== "ftyp") return false;
+
+  const majorBrand = buffer.subarray(8, 12).toString("ascii").toLowerCase();
+  return majorBrand.startsWith("m4a");
+}
+
+function getAudioExtension(contentType = "", buffer) {
+  if (contentType.includes("mp4")) {
+    // AVAudioRecorder produces an audio-only M4A container while correctly
+    // reporting the transport MIME type as audio/mp4. Preserve a genuine MP4
+    // filename for other clients, but give M4A data the extension expected by
+    // transcription providers.
+    return isM4AAudioContainer(buffer) ? "m4a" : "mp4";
+  }
   if (contentType.includes("mpeg") || contentType.includes("mp3")) return "mp3";
   if (contentType.includes("wav")) return "wav";
   if (contentType.includes("ogg")) return "ogg";
@@ -62,7 +78,7 @@ export async function transcribeAudio({ buffer, contentType }) {
   }
 
   try {
-    const file = await toFile(buffer, `voice-input.${getAudioExtension(normalizedType)}`, {
+    const file = await toFile(buffer, `voice-input.${getAudioExtension(normalizedType, buffer)}`, {
       type: normalizedType,
     });
 
