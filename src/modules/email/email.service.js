@@ -486,7 +486,7 @@ async function sendEmail({ to, subject, text, html, attachments, auditCode, purp
     to,
     subject,
     purpose,
-    devCode: auditCode
+    ...(purpose === "password_reset" ? {} : { devCode: auditCode })
   }, "Email dev delivery: configure EMAIL_PROVIDER=smtp or EMAIL_PROVIDER=resend for real delivery");
 
   return { id: `dev-${Date.now()}`, devOnly: true };

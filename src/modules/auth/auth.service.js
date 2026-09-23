@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 import { AppError } from "../../utils/AppError.js";
 import {
   sendEmailChangeVerification,
@@ -134,6 +135,14 @@ function genericPasswordResetMeta() {
     resendAvailableInSeconds: env.AUTH_CODE_RESEND_COOLDOWN_SECONDS,
     resendAttempts: 0,
     maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS
+  };
+}
+
+function genericPasswordResetResponse() {
+  return {
+    sent: true,
+    message: "If this email exists, a reset code was sent.",
+    reset: genericPasswordResetMeta()
   };
 }
 
@@ -343,14 +352,25 @@ export async function requestPasswordReset({ email }) {
   const user = await findUserByEmail(email);
 
   if (!user || !user.passwordHash) {
-    return {
-      sent: true,
-      reset: genericPasswordResetMeta()
-    };
+    return genericPasswordResetResponse();
   }
 
-  assertPasswordResetResendAllowed(user);
-  assertCooldown(user.passwordResetLastSentAt, "password_reset");
+  try {
+    assertPasswordResetResendAllowed(user);
+    assertCooldown(user.passwordResetLastSentAt, "password_reset");
+  } catch (error) {
+    if (error.code === "PASSWORD_RESET_RESEND_LOCKED" || error.code === "AUTH_CODE_RESEND_COOLDOWN") {
+      logger.info({
+        authFlow: "forgot_password",
+        userId: user._id,
+        reason: error.code
+      }, "Password reset request suppressed by resend controls");
+
+      return genericPasswordResetResponse();
+    }
+
+    throw error;
+  }
 
   const hasActiveReset = Boolean(
     user.passwordResetCodeHash &&
@@ -362,10 +382,14 @@ export async function requestPasswordReset({ email }) {
   if (resendAttempts > env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS) {
     user.passwordResetResendCooldownUntil = passwordResetLockUntil();
     await user.save();
-    throw new AppError("Too many attempts. Please try again in one hour.", 429, "PASSWORD_RESET_RESEND_LOCKED", {
-      retryAfterSeconds: secondsUntil(user.passwordResetResendCooldownUntil),
-      maxResendAttempts: env.PASSWORD_RESET_MAX_RESEND_ATTEMPTS
-    });
+
+    logger.info({
+      authFlow: "forgot_password",
+      userId: user._id,
+      reason: "PASSWORD_RESET_RESEND_LOCKED"
+    }, "Password reset request suppressed by resend lock");
+
+    return genericPasswordResetResponse();
   }
 
   const code = generateCode();
@@ -395,9 +419,17 @@ export async function requestPasswordReset({ email }) {
       code
     });
   } catch (error) {
+    logger.error({
+      err: error,
+      authFlow: "forgot_password",
+      userId: user._id,
+      providerCode: error.code
+    }, "Password reset email delivery failed");
+
     clearPasswordReset(user);
     await user.save().catch(() => {});
-    throw error;
+
+    return genericPasswordResetResponse();
   }
 
   if (!delivery?.devOnly) {
@@ -405,11 +437,7 @@ export async function requestPasswordReset({ email }) {
     await user.save();
   }
 
-  return {
-    sent: true,
-    expiresAt: user.passwordResetExpiresAt,
-    reset: passwordResetMeta(user)
-  };
+  return genericPasswordResetResponse();
 }
 
 export async function verifyPasswordResetCode({ email, code }) {
