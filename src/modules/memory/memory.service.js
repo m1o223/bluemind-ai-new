@@ -1,4 +1,5 @@
 import { AppError } from "../../utils/AppError.js";
+import { Project } from "../projects/project.model.js";
 import {
   archiveUserMemory,
   createConversation,
@@ -10,15 +11,22 @@ import {
   updateUserMemory
 } from "./memory.repository.js";
 
-export async function getOrCreateConversation({ conversationId, userId, privateSpaceId }) {
+export async function getOrCreateConversation({ conversationId, userId, privateSpaceId, projectId }) {
   if (!conversationId) {
-    return createConversation(userId, { privateSpaceId });
+    if (projectId) {
+      const projectExists = await Project.exists({ _id: projectId, userId, deletedAt: { $exists: false } });
+      if (!projectExists) throw new AppError("Project was not found", 404, "PROJECT_NOT_FOUND");
+    }
+    return createConversation(userId, { privateSpaceId, projectId });
   }
 
-  const conversation = await findConversationById(conversationId, userId, { privateSpaceId });
+  const conversation = await findConversationById(conversationId, userId, { privateSpaceId, projectId });
 
   if (!conversation) {
     throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
+  }
+  if (projectId && String(conversation.projectId || "") !== String(projectId)) {
+    throw new AppError("Conversation was not found in this project", 404, "CONVERSATION_NOT_FOUND");
   }
 
   return conversation;
@@ -59,6 +67,7 @@ export function toConversationMeta(conversation) {
   return {
     conversationId: conversation._id.toString(),
     privateSpaceId: conversation.privateSpaceId?.toString(),
+    projectId: conversation.projectId?.toString(),
     title: conversation.title,
     chatSessionMode: workspace,
     workspace,

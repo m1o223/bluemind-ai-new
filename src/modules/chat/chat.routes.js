@@ -10,7 +10,9 @@ import {
   branchConversation,
   searchConversations,
   deleteConversation,
+  clearConversations,
   renameConversation,
+  moveConversation,
   sendChatMessage,
   createVoiceSpeech,
   transcribeVoiceMessage,
@@ -23,6 +25,8 @@ import {
   chatConversationParamsSchema,
   chatMessageSchema,
   messageActionSchema,
+  listConversationsSchema,
+  moveConversationSchema,
   renameConversationSchema,
   searchConversationsSchema
 } from "./chat.validation.js";
@@ -50,9 +54,10 @@ router.post("/stream", requireAuth, logChatRequest, validate(chatMessageSchema),
 router.post("/hidden/stream", requireAuth, logChatRequest, validate(chatMessageSchema), streamHiddenChatMessage);
 router.post("/voice/transcribe", requireAuth, express.raw({ type: "audio/*", limit: "12mb" }), transcribeVoiceMessage);
 router.post("/voice/speech", requireAuth, createVoiceSpeech);
-router.get("/conversations", requireAuth, listConversations);
+router.get("/conversations", requireAuth, validate(listConversationsSchema), listConversations);
 router.get("/conversations/search", requireAuth, validate(searchConversationsSchema), searchConversations);
 router.get("/conversations/latest", requireAuth, getLatestConversation);
+router.delete("/conversations", requireAuth, clearConversations);
 router.get(
   "/conversations/:conversationId",
   requireAuth,
@@ -76,6 +81,12 @@ router.patch(
   requireAuth,
   validate(renameConversationSchema),
   renameConversation
+);
+router.patch(
+  "/conversations/:conversationId/project",
+  requireAuth,
+  validate(moveConversationSchema),
+  moveConversation
 );
 router.delete(
   "/conversations/:conversationId",

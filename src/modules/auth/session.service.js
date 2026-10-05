@@ -166,3 +166,34 @@ export async function revokeUserSessions(userId, reason = "security_update", exc
     revoked: result.modifiedCount || 0
   };
 }
+
+function sessionLabel(userAgent = "") {
+  const value = String(userAgent).toLowerCase();
+  if (value.includes("iphone")) return "iPhone";
+  if (value.includes("ipad")) return "iPad";
+  if (value.includes("android")) return "Android device";
+  if (value.includes("macintosh") || value.includes("mac os")) return "Mac";
+  if (value.includes("windows")) return "Windows device";
+  return "Unknown device";
+}
+
+export async function listUserSessions(userId, currentSessionId) {
+  const sessions = await AuthSession.find({
+    userId,
+    revokedAt: { $exists: false },
+    expiresAt: { $gt: new Date() }
+  }).sort({ lastUsedAt: -1 });
+
+  return sessions.map((session) => ({
+    id: session._id.toString(),
+    device: sessionLabel(session.userAgent),
+    current: session._id.toString() === String(currentSessionId),
+    createdAt: session.createdAt,
+    lastUsedAt: session.lastUsedAt,
+    expiresAt: session.expiresAt
+  }));
+}
+
+export function revokeOtherUserSessions(userId, currentSessionId) {
+  return revokeUserSessions(userId, "logout_other_devices", currentSessionId);
+}

@@ -14,10 +14,16 @@ function conversationScopeFilter(privateSpaceId) {
   };
 }
 
+function projectScopeFilter(projectId) {
+  if (projectId) return { projectId };
+  return { projectId: null };
+}
+
 export function createConversation(userId, options = {}) {
   return Conversation.create({
     userId,
-    ...(options.privateSpaceId ? { privateSpaceId: options.privateSpaceId } : {})
+    ...(options.privateSpaceId ? { privateSpaceId: options.privateSpaceId } : {}),
+    ...(options.projectId ? { projectId: options.projectId } : {})
   });
 }
 
@@ -35,7 +41,8 @@ export function findLatestConversation(userId, options = {}) {
     userId,
     deletedAt: { $exists: false },
     "messages.0": { $exists: true },
-    ...conversationScopeFilter(options.privateSpaceId)
+    ...conversationScopeFilter(options.privateSpaceId),
+    ...projectScopeFilter(options.projectId)
   }).sort({ updatedAt: -1 });
 }
 
@@ -44,7 +51,8 @@ export function listUserConversations(userId, limit = 20, options = {}) {
     userId,
     deletedAt: { $exists: false },
     "messages.0": { $exists: true },
-    ...conversationScopeFilter(options.privateSpaceId)
+    ...conversationScopeFilter(options.privateSpaceId),
+    ...projectScopeFilter(options.projectId)
   })
     .sort({ updatedAt: -1 })
     .limit(limit);
@@ -59,6 +67,7 @@ export function searchUserConversations(userId, query, limit = 20, options = {})
     deletedAt: { $exists: false },
     "messages.0": { $exists: true },
     ...conversationScopeFilter(options.privateSpaceId),
+    ...projectScopeFilter(options.projectId),
     $or: [
       { title: pattern },
       { "messages.content": pattern }
@@ -75,6 +84,16 @@ export function saveConversation(conversation) {
 export function softDeleteConversation(conversation) {
   conversation.deletedAt = new Date();
   return conversation.save();
+}
+
+export function softDeleteUserConversations(userId) {
+  return Conversation.updateMany({
+    userId,
+    deletedAt: { $exists: false },
+    projectId: null
+  }, {
+    $set: { deletedAt: new Date() }
+  });
 }
 
 export function listActiveMemories(userId, limit = 100) {

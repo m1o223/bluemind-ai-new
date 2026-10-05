@@ -48,6 +48,7 @@ export function normalizePreferences(preferences = {}) {
     notificationsEnabled: preferences.notificationsEnabled !== false,
     birthdayGreetings: preferences.birthdayGreetings !== false,
     animations: preferences.animations !== false,
+    chatHistoryMode: preferences.chatHistoryMode === "Off" ? "Off" : "On",
     notificationPreferences,
     openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
   };

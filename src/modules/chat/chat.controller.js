@@ -10,11 +10,13 @@ import {
   branchChatConversation,
   createStreamingChatReply,
   deleteChatConversation,
+  clearChatConversations,
   getChatConversation,
   getLatestChatConversation,
   listChatConversations,
   regenerateChatMessage,
   renameChatConversation,
+  moveChatConversation,
   searchChatConversations
 } from "./chat.service.js";
 import { synthesizeSpeech, transcribeAudio } from "./voice.service.js";
@@ -50,7 +52,9 @@ export const createVoiceSpeech = asyncHandler(async (req, res) => {
 });
 
 export const listConversations = asyncHandler(async (req, res) => {
-  const result = await listChatConversations(req.user._id);
+  const result = await listChatConversations(req.user._id, {
+    projectId: req.validated.query.projectId
+  });
 
   sendResponse(res, 200, result);
 });
@@ -90,6 +94,15 @@ export const renameConversation = asyncHandler(async (req, res) => {
   sendResponse(res, 200, result, "Conversation renamed");
 });
 
+export const moveConversation = asyncHandler(async (req, res) => {
+  const result = await moveChatConversation(
+    req.user._id,
+    req.validated.params.conversationId,
+    req.validated.body.projectId
+  );
+  sendResponse(res, 200, result, "Conversation project updated");
+});
+
 export const deleteConversation = asyncHandler(async (req, res) => {
   const result = await deleteChatConversation(
     req.user._id,
@@ -97,6 +110,11 @@ export const deleteConversation = asyncHandler(async (req, res) => {
   );
 
   sendResponse(res, 200, result, "Conversation deleted");
+});
+
+export const clearConversations = asyncHandler(async (req, res) => {
+  const result = await clearChatConversations(req.user._id);
+  sendResponse(res, 200, result, "Chat history cleared");
 });
 
 export const branchConversation = asyncHandler(async (req, res) => {

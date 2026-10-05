@@ -13,7 +13,7 @@ import { updateUserPreferences as updatePreferencesForUser } from "../preference
 import { createUser, findUserByEmail, normalizeEmail, updateLastLogin } from "../users/user.service.js";
 import { processDueAccountDeletions } from "./accountDeletion.service.js";
 import { comparePassword, hashPassword } from "./password.service.js";
-import { createAuthSession, refreshAuthSession, revokeAuthSession, revokeUserSessions } from "./session.service.js";
+import { createAuthSession, refreshAuthSession, listUserSessions, revokeAuthSession, revokeOtherUserSessions, revokeUserSessions } from "./session.service.js";
 import { hashToken } from "./token.service.js";
 
 function now() {
@@ -667,6 +667,14 @@ export async function refreshSession(refreshToken, req) {
 
 export async function logoutSession(refreshToken) {
   return revokeAuthSession(refreshToken);
+}
+
+export function getUserSessions(user, currentSessionId) {
+  return listUserSessions(user._id, currentSessionId);
+}
+
+export function logoutOtherUserSessions(user, currentSessionId) {
+  return revokeOtherUserSessions(user._id, currentSessionId);
 }
 
 export async function updateUserPreferences(user, preferences) {

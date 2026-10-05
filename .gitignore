@@ -17,3 +17,7 @@ coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Independent frontend Git worktrees kept beside the backend checkout.
+/frontend/
+/ios-status-fix/

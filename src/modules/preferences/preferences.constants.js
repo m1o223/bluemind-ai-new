@@ -13,6 +13,7 @@ export const DEFAULT_USER_PREFERENCES = {
   notificationsEnabled: true,
   birthdayGreetings: true,
   animations: true,
+  chatHistoryMode: "On",
   notificationPreferences: {
     ai: {
       taskCompleted: false,

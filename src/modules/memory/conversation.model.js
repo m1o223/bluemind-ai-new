@@ -33,6 +33,11 @@ const conversationSchema = new mongoose.Schema({
     ref: "PrivateSpace",
     index: true
   },
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Project",
+    index: true
+  },
   title: {
     type: String,
     trim: true,
@@ -64,5 +69,6 @@ const conversationSchema = new mongoose.Schema({
 });
 
 conversationSchema.index({ userId: 1, privateSpaceId: 1, updatedAt: -1 });
+conversationSchema.index({ userId: 1, projectId: 1, updatedAt: -1 });
 
 export const Conversation = mongoose.model("Conversation", conversationSchema);

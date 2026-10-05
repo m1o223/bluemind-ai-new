@@ -11,6 +11,7 @@ import {
   listUserConversations,
   saveConversation,
   searchUserConversations,
+  softDeleteUserConversations,
   softDeleteConversation
 } from "../memory/memory.repository.js";
 import {
@@ -22,6 +23,7 @@ import { findUserById } from "../users/user.service.js";
 import { getLanguageName, normalizePreferences } from "../preferences/preferences.service.js";
 import { queueSmartNotification } from "../notifications/smartNotification.service.js";
 import { AppError } from "../../utils/AppError.js";
+import { Project } from "../projects/project.model.js";
 import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 
@@ -138,8 +140,12 @@ function buildImproveInstruction(option) {
   const labels = {
     clearer: "Rewrite the selected answer to be clearer, better organized, and easier to follow.",
     shorter: "Rewrite the selected answer to be shorter while preserving the most important information.",
+    longer: "Rewrite the selected answer with more depth and useful detail while preserving its intent and tone.",
+    professional: "Rewrite the selected answer in a polished professional tone without changing its meaning.",
     more_detailed: "Rewrite the selected answer with more useful detail, examples, and practical context.",
-    simpler: "Rewrite the selected answer in simpler language with a gentler step-by-step explanation."
+    simpler: "Rewrite the selected answer in simpler language with a gentler step-by-step explanation.",
+    rewrite: "Rewrite the selected answer with fresh wording while preserving the original intent and important details.",
+    translate: "Translate the selected answer into the language requested in the current conversation. If no target language was specified, ask one concise question for the target language."
   };
 
   return labels[option] || labels.clearer;
@@ -543,6 +549,11 @@ function applyChatModeInstruction(messages, metadata, responseModeName, extraIns
   const instructions = [
     responseMode.instruction,
     CHAT_MODE_INSTRUCTIONS[chatMode],
+    metadata?.workspace === "writing" ? [
+      "The user is in BlueMind Writing Mode. Treat this as an ongoing writing conversation, preserving previous edits and instructions.",
+      metadata?.writingType ? `Selected writing type: ${String(metadata.writingType).slice(0, 40)}.` : "",
+      "Infer the output language from the user's request unless they explicitly request another language."
+    ].filter(Boolean).join("\n") : "",
     metadata?.scheduleAssistant ? SCHEDULE_ASSISTANT_INSTRUCTION : "",
     ...extraInstructions
   ].filter(Boolean);
@@ -560,8 +571,8 @@ function applyChatModeInstruction(messages, metadata, responseModeName, extraIns
   ];
 }
 
-export async function createChatReply({ userId, conversationId, privateSpaceId, message, imageIds = [], metadata, mode }) {
-  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId });
+export async function createChatReply({ userId, conversationId, privateSpaceId, projectId, message, imageIds = [], metadata, mode }) {
+  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId, projectId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
   const searchHandoffContext = getSearchHandoffContext(metadata);
@@ -609,13 +620,14 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
   });
 
   const assistantMessage = conversation.messages.at(-1);
-  const [memoryProcessing, imageMemory, learningProfile] = await Promise.all([
+  const retainHistory = normalizePreferences(user?.preferences).chatHistoryMode !== "Off";
+  const [memoryProcessing, imageMemory, learningProfile] = retainHistory ? await Promise.all([
     processConversationMemory({ userId, conversation, preferences: user?.preferences }),
     analyzeImagesForMemory(userId, images),
     processLearningProfileUpdate({ user, conversation, latestUserMessage: userMessageContent })
-  ]);
+  ]) : [{ skipped: true, reason: "chat_history_disabled" }, [], null];
 
-  await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
+  if (retainHistory) await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
   await queueChatCompletionNotification({
     userId,
     conversation,
@@ -624,17 +636,20 @@ export async function createChatReply({ userId, conversationId, privateSpaceId, 
     selectedAiMode
   });
 
-  return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
+  const response = buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
     imageMemories: imageMemory.length,
     learningProfile
   });
+  if (!retainHistory) await softDeleteConversation(conversation);
+  return response;
 }
 
 export async function createStreamingChatReply({
   userId,
   conversationId,
   privateSpaceId,
+  projectId,
   message,
   imageIds = [],
   metadata,
@@ -644,7 +659,7 @@ export async function createStreamingChatReply({
   onDelta,
   onResponseStart
 }) {
-  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId });
+  const conversation = await getOrCreateConversation({ userId, conversationId, privateSpaceId, projectId });
   const user = await findUserById(userId);
   const images = await resolveChatImages(userId, imageIds);
   const searchHandoffContext = getSearchHandoffContext(metadata);
@@ -699,13 +714,14 @@ export async function createStreamingChatReply({
   });
 
   const assistantMessage = conversation.messages.at(-1);
-  const [memoryProcessing, imageMemory, learningProfile] = await Promise.all([
+  const retainHistory = normalizePreferences(user?.preferences).chatHistoryMode !== "Off";
+  const [memoryProcessing, imageMemory, learningProfile] = retainHistory ? await Promise.all([
     processConversationMemory({ userId, conversation, preferences: user?.preferences }),
     analyzeImagesForMemory(userId, images),
     processLearningProfileUpdate({ user, conversation, latestUserMessage: userMessageContent })
-  ]);
+  ]) : [{ skipped: true, reason: "chat_history_disabled" }, [], null];
 
-  await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
+  if (retainHistory) await updateConversationTitleIfNeeded(conversation, buildSearchHandoffTitleSeed(searchHandoffContext) || userMessageContent, user?.preferences);
   await queueChatCompletionNotification({
     userId,
     conversation,
@@ -714,11 +730,13 @@ export async function createStreamingChatReply({
     selectedAiMode
   });
 
-  return buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
+  const response = buildChatResponse(conversation, assistantMessage, aiResult.metadata, context.metadata, {
     ...memoryProcessing,
     imageMemories: imageMemory.length,
     learningProfile
   });
+  if (!retainHistory) await softDeleteConversation(conversation);
+  return response;
 }
 
 export async function branchChatConversation({ userId, conversationId, messageId }) {
@@ -734,7 +752,8 @@ export async function branchChatConversation({ userId, conversationId, messageId
   }
 
   const branch = await createConversation(userId, {
-    privateSpaceId: conversation.privateSpaceId
+    privateSpaceId: conversation.privateSpaceId,
+    projectId: conversation.projectId
   });
   branch.title = `${conversation.title || "New conversation"} (Branch)`.slice(0, 120);
   branch.summary = conversation.summary || "";
@@ -778,6 +797,7 @@ export async function regenerateChatMessage({
   const user = await findUserById(userId);
   const selectedAiMode = normalizeResponseMode(targetMessage.metadata || previousUser.metadata, targetMessage.metadata?.aiMode || previousUser.metadata?.aiMode || user?.preferences?.aiMode);
   const actionMetadata = {
+    ...(previousUser.metadata || {}),
     ...(targetMessage.metadata || {}),
     chatAction: option === "retry" ? "retry" : "improve_answer",
     improvementOption: option !== "retry" ? option : undefined
@@ -915,7 +935,8 @@ export async function listChatConversations(userId, options = {}) {
       ...toConversationMeta(conversation),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
-      lastMessageAt: conversation.messages.at(-1)?.createdAt || conversation.updatedAt
+      lastMessageAt: conversation.messages.at(-1)?.createdAt || conversation.updatedAt,
+      preview: String(conversation.messages.at(-1)?.content || "").slice(0, 180)
     }))
   };
 }
@@ -987,6 +1008,21 @@ export async function renameChatConversation(userId, conversationId, title, opti
   };
 }
 
+export async function moveChatConversation(userId, conversationId, projectId) {
+  const conversation = await findConversationById(conversationId, userId);
+  if (!conversation) throw new AppError("Conversation was not found", 404, "CONVERSATION_NOT_FOUND");
+
+  if (projectId) {
+    const projectExists = await Project.exists({ _id: projectId, userId, deletedAt: { $exists: false } });
+    if (!projectExists) throw new AppError("Project was not found", 404, "PROJECT_NOT_FOUND");
+    conversation.projectId = projectId;
+  } else {
+    conversation.projectId = undefined;
+  }
+  await saveConversation(conversation);
+  return { conversation: buildConversationResponse(conversation) };
+}
+
 export async function deleteChatConversation(userId, conversationId, options = {}) {
   const conversation = await findConversationById(conversationId, userId, options);
 
@@ -1000,4 +1036,9 @@ export async function deleteChatConversation(userId, conversationId, options = {
     deleted: true,
     conversationId
   };
+}
+
+export async function clearChatConversations(userId) {
+  const result = await softDeleteUserConversations(userId);
+  return { cleared: result.modifiedCount || 0 };
 }

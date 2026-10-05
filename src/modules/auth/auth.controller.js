@@ -18,6 +18,8 @@ import {
   loginGuest,
   loginUser,
   logoutSession,
+  getUserSessions,
+  logoutOtherUserSessions,
   refreshSession,
   registerUser,
   updateUserPreferences
@@ -230,6 +232,16 @@ export const logout = asyncHandler(async (req, res) => {
     sessionId: result.sessionId
   }, "Auth logout completed");
   sendResponse(res, 200, result);
+});
+
+export const sessions = asyncHandler(async (req, res) => {
+  const result = await getUserSessions(req.user, req.authSession._id);
+  sendResponse(res, 200, { sessions: result });
+});
+
+export const logoutOtherSessions = asyncHandler(async (req, res) => {
+  const result = await logoutOtherUserSessions(req.user, req.authSession._id);
+  sendResponse(res, 200, result, "Other sessions logged out");
 });
 
 export const updatePreferences = asyncHandler(async (req, res) => {

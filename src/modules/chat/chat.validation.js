@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const objectIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid conversationId");
+const projectIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid projectId");
 const imageIdSchema = z.string().trim().regex(/^[0-9a-fA-F]{24}$/, "Invalid imageId");
 const aiModeSchema = z.enum([
   "general",
@@ -43,6 +44,7 @@ function hasSearchHandoff(metadata) {
 export const chatMessageSchema = z.object({
   body: z.object({
     conversationId: objectIdSchema.optional(),
+    projectId: projectIdSchema.optional(),
     message: z.string().trim().min(1).max(8000).optional(),
     imageIds: z.array(imageIdSchema).max(4).default([]),
     mode: aiModeSchema.optional(),
@@ -52,6 +54,12 @@ export const chatMessageSchema = z.object({
   }),
   params: z.object({}),
   query: z.object({})
+});
+
+export const listConversationsSchema = z.object({
+  body: z.object({}),
+  params: z.object({}),
+  query: z.object({ projectId: projectIdSchema.optional() }).strict()
 });
 
 export const searchConversationsSchema = z.object({
@@ -78,6 +86,12 @@ export const renameConversationSchema = z.object({
   params: z.object({
     conversationId: objectIdSchema
   }),
+  query: z.object({})
+});
+
+export const moveConversationSchema = z.object({
+  body: z.object({ projectId: projectIdSchema.nullable() }).strict(),
+  params: z.object({ conversationId: objectIdSchema }),
   query: z.object({})
 });
 

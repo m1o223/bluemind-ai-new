@@ -12,7 +12,9 @@ import {
   getMe,
   guest,
   login,
+  logoutOtherSessions,
   logout,
+  sessions,
   requestChangeEmail,
   requestDeleteAccount,
   refresh,
@@ -80,6 +82,8 @@ router.post("/reset-password", authAttemptLimiter, validate(resetPasswordSchema)
 router.post("/refresh", validate(refreshSchema), refresh);
 router.post("/logout", validate(logoutSchema), logout);
 router.get("/me", requireAuth, getMe);
+router.get("/sessions", requireAuth, sessions);
+router.post("/sessions/logout-others", requireAuth, logoutOtherSessions);
 router.patch("/profile", requireAuth, validate(profileSchema), updateProfile);
 router.patch("/preferences", requireAuth, validate(preferencesSchema), updatePreferences);
 router.post("/change-email/request", requireAuth, authCodeLimiter, validate(changeEmailRequestSchema), requestChangeEmail);

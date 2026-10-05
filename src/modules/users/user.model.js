@@ -179,6 +179,11 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    chatHistoryMode: {
+      type: String,
+      enum: ["On", "Off"],
+      default: "On"
+    },
     notificationPreferences: {
       type: mongoose.Schema.Types.Mixed,
       default: undefined
@@ -219,6 +224,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
       notificationsEnabled: preferences.notificationsEnabled !== false,
       birthdayGreetings: preferences.birthdayGreetings !== false,
       animations: preferences.animations !== false,
+      chatHistoryMode: preferences.chatHistoryMode === "Off" ? "Off" : "On",
       notificationPreferences: preferences.notificationPreferences || undefined,
       openAppDirectlyToChat: preferences.openAppDirectlyToChat === true
     },

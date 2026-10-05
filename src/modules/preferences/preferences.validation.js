@@ -79,6 +79,7 @@ export const preferencesBodySchema = z.object({
   notificationsEnabled: z.boolean().optional(),
   birthdayGreetings: z.boolean().optional(),
   animations: z.boolean().optional(),
+  chatHistoryMode: z.enum(["On", "Off"]).optional(),
   notificationPreferences: notificationPreferencesSchema,
   openAppDirectlyToChat: z.boolean().optional()
 }).strict().refine((body) => Object.keys(body).length > 0, {

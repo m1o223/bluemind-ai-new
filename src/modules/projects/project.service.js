@@ -1,5 +1,6 @@
 import { AppError } from "../../utils/AppError.js";
 import { Project } from "./project.model.js";
+import { Conversation } from "../memory/conversation.model.js";
 
 const MAX_PROJECTS_PER_USER = 100;
 
@@ -35,7 +36,12 @@ export async function listUserProjects(userId, { search } = {}) {
     ];
   }
   const projects = await Project.find(filter).sort({ updatedAt: -1, _id: -1 });
-  return { projects: projects.map(toProjectResponse) };
+  const counts = projects.length ? await Conversation.aggregate([
+    { $match: { userId, projectId: { $in: projects.map((project) => project._id) }, deletedAt: { $exists: false }, "messages.0": { $exists: true } } },
+    { $group: { _id: "$projectId", count: { $sum: 1 } } }
+  ]) : [];
+  const countByProject = new Map(counts.map((item) => [item._id.toString(), item.count]));
+  return { projects: projects.map((project) => ({ ...toProjectResponse(project), chatCount: countByProject.get(project._id.toString()) || 0 })) };
 }
 
 export async function getUserProject(userId, projectId) {
@@ -43,7 +49,8 @@ export async function getUserProject(userId, projectId) {
   if (!project) {
     throw new AppError("Project was not found", 404, "PROJECT_NOT_FOUND");
   }
-  return { project: toProjectResponse(project) };
+  const chatCount = await Conversation.countDocuments({ userId, projectId: project._id, deletedAt: { $exists: false }, "messages.0": { $exists: true } });
+  return { project: { ...toProjectResponse(project), chatCount } };
 }
 
 export async function createUserProject(userId, input) {
@@ -75,6 +82,10 @@ export async function deleteUserProject(userId, projectId) {
   if (!project) {
     throw new AppError("Project was not found", 404, "PROJECT_NOT_FOUND");
   }
+  await Conversation.updateMany(
+    { userId, projectId, deletedAt: { $exists: false } },
+    { $unset: { projectId: 1 } }
+  );
   project.deletedAt = new Date();
   await project.save();
   return { deleted: true, projectId: project._id.toString() };
